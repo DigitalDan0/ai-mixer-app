@@ -1,0 +1,53 @@
+.track-list {
+    background-color: white;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 16px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .track-list h2 {
+    margin-top: 0;
+    margin-bottom: 16px;
+  }
+  
+  .track-item {
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  
+  .track-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  
+  .track-name {
+    font-weight: bold;
+    margin-right: 12px;
+  }
+  
+  .track-controls {
+    display: flex;
+    align-items: center;
+  }
+  
+  .track-button {
+    background-color: #e0e0e0;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    margin-right: 8px;
+    cursor: pointer;
+  }
+  
+  .track-button.active {
+    background-color: var(--primary-color);
+    color: white;
+  }
+  
+  .volume-slider {
+    flex-grow: 1;
+  }

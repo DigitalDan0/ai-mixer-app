@@ -1,0 +1,50 @@
+:root {
+  --primary-color: #6200ee;
+  --background-color: #f5f5f5;
+  --text-color: #333333;
+}
+
+body {
+  font-family: 'Roboto', sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 0;
+}
+
+.app {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+h1 {
+  color: var(--primary-color);
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+input[type="range"] {
+  width: 100%;
+  margin: 0.5rem 0;
+}
+
+@media (max-width: 768px) {
+  .app {
+    padding: 1rem;
+  }
+}
