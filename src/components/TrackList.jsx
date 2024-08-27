@@ -7,13 +7,11 @@ const TrackList = ({ tracks, onMixingChange }) => {
   };
 
   const handleMuteToggle = (trackId) => {
-    const track = tracks.find(t => t.id === trackId);
-    onMixingChange(trackId, { muted: !track.muted });
+    onMixingChange(trackId, { muted: !tracks.find(t => t.id === trackId).muted });
   };
 
   const handleSoloToggle = (trackId) => {
-    const track = tracks.find(t => t.id === trackId);
-    onMixingChange(trackId, { soloed: !track.soloed });
+    onMixingChange(trackId, { soloed: !tracks.find(t => t.id === trackId).soloed });
   };
 
   return (
