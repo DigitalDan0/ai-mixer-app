@@ -1,30 +1,14 @@
-import natural from 'natural';
 import axios from 'axios';
 
-const tokenizer = new natural.WordTokenizer();
-const classifier = new natural.BayesClassifier();
-
-
-// Train the classifier with sample inputs
-const trainClassifier = () => {
-  classifier.addDocument('increase volume', 'volume');
-  classifier.addDocument('turn up the volume', 'volume');
-  classifier.addDocument('make it louder', 'volume');
-  classifier.addDocument('decrease volume', 'volume');
-  classifier.addDocument('turn down the volume', 'volume');
-  classifier.addDocument('make it quieter', 'volume');
-  classifier.addDocument('boost bass', 'eq');
-  classifier.addDocument('more low end', 'eq');
-  classifier.addDocument('increase treble', 'eq');
-  classifier.addDocument('more high end', 'eq');
-  classifier.addDocument('add compression', 'compression');
-  classifier.addDocument('make it punchier', 'compression');
-  classifier.addDocument('balance the mix', 'balance');
-  classifier.addDocument('even out the levels', 'balance');
-  classifier.train();
+const keywordClassifier = (input) => {
+  const lowercaseInput = input.toLowerCase();
+  if (lowercaseInput.includes('volume')) return 'volume';
+  if (lowercaseInput.includes('bass') || lowercaseInput.includes('low end')) return 'eq_bass';
+  if (lowercaseInput.includes('treble') || lowercaseInput.includes('high end')) return 'eq_treble';
+  if (lowercaseInput.includes('compression') || lowercaseInput.includes('punchy')) return 'compression';
+  if (lowercaseInput.includes('balance') || lowercaseInput.includes('even out')) return 'balance';
+  return 'unknown';
 };
-
-trainClassifier();
 
 // Function to call Claude API
 const callClaudeAPI = async (prompt) => {
@@ -40,7 +24,7 @@ const callClaudeAPI = async (prompt) => {
       {
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': process.env.ANTHROPIC_API_KEY,
+          'X-API-Key': import.meta.env.VITE_ANTHROPIC_API_KEY,
         },
       }
     );
@@ -52,23 +36,21 @@ const callClaudeAPI = async (prompt) => {
 };
 
 export const interpretUserRequest = async (userInput) => {
-  const tokens = tokenizer.tokenize(userInput.toLowerCase());
-  const intent = classifier.classify(userInput);
-
+  const intent = keywordClassifier(userInput);
   let effect, params;
 
   switch (intent) {
     case 'volume':
       effect = 'volume';
-      params = { change: tokens.includes('increase') || tokens.includes('louder') ? 0.1 : -0.1 };
+      params = { change: userInput.toLowerCase().includes('increase') ? 0.1 : -0.1 };
       break;
-    case 'eq':
+    case 'eq_bass':
       effect = 'eq';
-      if (tokens.includes('bass') || tokens.includes('low')) {
-        params = { frequency: 100, gain: tokens.includes('boost') || tokens.includes('more') ? 3 : -3 };
-      } else if (tokens.includes('treble') || tokens.includes('high')) {
-        params = { frequency: 10000, gain: tokens.includes('boost') || tokens.includes('more') ? 3 : -3 };
-      }
+      params = { frequency: 100, gain: userInput.toLowerCase().includes('boost') ? 3 : -3 };
+      break;
+    case 'eq_treble':
+      effect = 'eq';
+      params = { frequency: 10000, gain: userInput.toLowerCase().includes('boost') ? 3 : -3 };
       break;
     case 'compression':
       effect = 'compression';

@@ -17,63 +17,76 @@ export const updateTrackVolume = (track, audioContext, gainNode) => {
   }
 };
 
-// Function to apply mastering chain
-export const applyMasteringChain = (audioContext, settings) => {
-  const input = audioContext.createGain();
-  const compressor = audioContext.createDynamicsCompressor();
-  const limiter = audioContext.createDynamicsCompressor();
-  const outputGain = audioContext.createGain();
+// Function to create and connect an EQ
+export const createEQ = (audioContext, frequencyBands) => {
+  const filters = frequencyBands.map(band => {
+    const filter = audioContext.createBiquadFilter();
+    filter.type = band.type;
+    filter.frequency.value = band.frequency;
+    filter.gain.value = band.gain;
+    filter.Q.value = band.Q;
+    return filter;
+  });
 
-  compressor.threshold.setValueAtTime(settings.compressorThreshold, audioContext.currentTime);
-  compressor.ratio.setValueAtTime(settings.compressorRatio, audioContext.currentTime);
-  compressor.knee.setValueAtTime(30, audioContext.currentTime);
-  compressor.attack.setValueAtTime(0.003, audioContext.currentTime);
-  compressor.release.setValueAtTime(0.25, audioContext.currentTime);
-
-  limiter.threshold.setValueAtTime(settings.limiterThreshold, audioContext.currentTime);
-  limiter.ratio.setValueAtTime(20, audioContext.currentTime);
-  limiter.knee.setValueAtTime(0, audioContext.currentTime);
-  limiter.attack.setValueAtTime(0.003, audioContext.currentTime);
-  limiter.release.setValueAtTime(0.01, audioContext.currentTime);
-
-  outputGain.gain.setValueAtTime(settings.outputGain, audioContext.currentTime);
-
-  input.connect(compressor);
-  compressor.connect(limiter);
-  limiter.connect(outputGain);
+  // Connect filters in series
+  for (let i = 1; i < filters.length; i++) {
+    filters[i - 1].connect(filters[i]);
+  }
 
   return {
-    input,
-    compressor,
-    limiter,
-    output: outputGain,
-    updateSettings: (newSettings) => {
-      compressor.threshold.setValueAtTime(newSettings.compressorThreshold, audioContext.currentTime);
-      compressor.ratio.setValueAtTime(newSettings.compressorRatio, audioContext.currentTime);
-      limiter.threshold.setValueAtTime(newSettings.limiterThreshold, audioContext.currentTime);
-      outputGain.gain.setValueAtTime(newSettings.outputGain, audioContext.currentTime);
+    filters,
+    input: filters[0],
+    output: filters[filters.length - 1],
+    updateBand: (index, updates) => {
+      const filter = filters[index];
+      Object.entries(updates).forEach(([param, value]) => {
+        if (filter[param]) filter[param].value = value;
+      });
     }
   };
 };
 
-// Function to create and connect audio nodes for a track
-export const createTrackNodes = (audioContext, track, masteringChainInput) => {
-  const sourceNode = audioContext.createBufferSource();
-  sourceNode.buffer = track.buffer;
-
-  const gainNode = audioContext.createGain();
-  gainNode.gain.setValueAtTime(track.volume, audioContext.currentTime);
-
-  sourceNode.connect(gainNode);
-  gainNode.connect(masteringChainInput);
-
-  return { sourceNode, gainNode };
+// Function to create a reverb effect
+export const createReverb = async (audioContext) => {
+  const convolver = audioContext.createConvolver();
+  const impulseLength = audioContext.sampleRate * 2; // 2 seconds
+  const impulse = audioContext.createBuffer(2, impulseLength, audioContext.sampleRate);
+  
+  for (let channel = 0; channel < 2; channel++) {
+    const impulseData = impulse.getChannelData(channel);
+    for (let i = 0; i < impulseLength; i++) {
+      impulseData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioContext.sampleRate * 0.1));
+    }
+  }
+  
+  convolver.buffer = impulse;
+  return convolver;
 };
 
-// Function to disconnect and reconnect track nodes when bypassing mastering
-export const updateTrackConnections = (gainNodes, isBypassed, masteringChainInput, masterOutput) => {
-  Object.values(gainNodes).forEach(gainNode => {
-    gainNode.disconnect();
-    gainNode.connect(isBypassed ? masterOutput : masteringChainInput);
-  });
+// Function to create a limiter
+export const createLimiter = (audioContext, threshold = -3, knee = 0, ratio = 20, attack = 0.003, release = 0.25) => {
+  const limiter = audioContext.createDynamicsCompressor();
+  limiter.threshold.value = threshold;
+  limiter.knee.value = knee;
+  limiter.ratio.value = ratio;
+  limiter.attack.value = attack;
+  limiter.release.value = release;
+  return limiter;
+};
+
+// Function to apply mastering chain
+export const applyMasteringChain = (audioContext, masterGainNode, compressorNode, limiterNode, eqNode, dryGainNode, wetGainNode, reverbNode, analyserNode) => {
+  masterGainNode.disconnect();
+  masterGainNode.connect(eqNode.input);
+  eqNode.output.connect(compressorNode);
+  compressorNode.connect(limiterNode);
+  
+  // Parallel dry/wet paths for reverb
+  limiterNode.connect(dryGainNode);
+  limiterNode.connect(wetGainNode);
+  wetGainNode.connect(reverbNode);
+  
+  dryGainNode.connect(analyserNode);
+  reverbNode.connect(analyserNode);
+  analyserNode.connect(audioContext.destination);
 };

@@ -1,38 +1,37 @@
 import React, { useRef, useEffect } from 'react';
+import './AudioVisualizer.css';
 
-const AudioVisualizer = ({ analyserNode, height }) => {
+const AudioVisualizer = ({ analyserNode }) => {
   const canvasRef = useRef(null);
-  const containerRef = useRef(null);
+  const requestRef = useRef(null);
 
   useEffect(() => {
+    if (!analyserNode) return;
+
     const canvas = canvasRef.current;
-    const container = containerRef.current;
     const canvasCtx = canvas.getContext('2d');
+
     const bufferLength = analyserNode.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
 
-    const resizeCanvas = () => {
-      canvas.width = container.clientWidth;
-      canvas.height = height;
-    };
-
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
     const draw = () => {
-      requestAnimationFrame(draw);
+      requestRef.current = requestAnimationFrame(draw);
+
       analyserNode.getByteFrequencyData(dataArray);
 
       canvasCtx.fillStyle = 'rgb(200, 200, 200)';
       canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 
       const barWidth = (canvas.width / bufferLength) * 2.5;
+      let barHeight;
       let x = 0;
 
       for (let i = 0; i < bufferLength; i++) {
-        const barHeight = (dataArray[i] / 255) * canvas.height;
-        canvasCtx.fillStyle = `rgb(50, ${Math.floor(barHeight + 100)}, 50)`;
-        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+        barHeight = dataArray[i] / 2;
+
+        canvasCtx.fillStyle = `rgb(50, ${barHeight + 100}, 50)`;
+        canvasCtx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight);
+
         x += barWidth + 1;
       }
     };
@@ -40,15 +39,11 @@ const AudioVisualizer = ({ analyserNode, height }) => {
     draw();
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
+      cancelAnimationFrame(requestRef.current);
     };
-  }, [analyserNode, height]);
+  }, [analyserNode]);
 
-  return (
-    <div ref={containerRef} style={{ width: '100%', height: `${height}px` }}>
-      <canvas ref={canvasRef} />
-    </div>
-  );
+  return <canvas ref={canvasRef} className="audio-visualizer" width="800" height="200" />;
 };
 
 export default AudioVisualizer;

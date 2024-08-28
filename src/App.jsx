@@ -5,7 +5,7 @@ import TrackUpload from './components/TrackUpload';
 import AudioVisualizer from './components/AudioVisualizer';
 import MasteringControls from './components/MasteringControls';
 import AIAssistant from './components/AIAssistant';
-import { processAudioTracks, applyAIChanges, updateTrackVolume, applyMasteringChain } from './services/audioProcessor';
+import { processAudioTracks, applyAIChanges, updateTrackVolume, createEQ, createReverb, createLimiter, applyMasteringChain } from './services/audioProcessor';
 import { interpretUserRequest, generateMixingSuggestion } from './services/aiService';
 
 const App = () => {
@@ -13,26 +13,63 @@ const App = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMasteringBypassed, setIsMasteringBypassed] = useState(false);
   const [masterVolume, setMasterVolume] = useState(1);
+  const [compressorThreshold, setCompressorThreshold] = useState(-24);
+  const [compressorRatio, setCompressorRatio] = useState(4);
   const [aiSuggestion, setAiSuggestion] = useState(null);
+  const [eqBands, setEqBands] = useState([
+    { type: 'lowshelf', frequency: 100, gain: 0, Q: 1 },
+    { type: 'peaking', frequency: 500, gain: 0, Q: 1 },
+    { type: 'peaking', frequency: 1000, gain: 0, Q: 1 },
+    { type: 'peaking', frequency: 2000, gain: 0, Q: 1 },
+    { type: 'highshelf', frequency: 10000, gain: 0, Q: 1 }
+  ]);
+  const [reverbMix, setReverbMix] = useState(0);
+  const [limiterThreshold, setLimiterThreshold] = useState(-3);
+  const [audioContext, setAudioContext] = useState(null);
 
-  const audioContextRef = useRef(null);
   const masterGainNode = useRef(null);
   const compressorNode = useRef(null);
   const analyserNode = useRef(null);
   const trackNodes = useRef({});
+  const eqNode = useRef(null);
+  const reverbNode = useRef(null);
+  const limiterNode = useRef(null);
+  const dryGainNode = useRef(null);
+  const wetGainNode = useRef(null);
 
   useEffect(() => {
-    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-    masterGainNode.current = audioContextRef.current.createGain();
-    compressorNode.current = audioContextRef.current.createDynamicsCompressor();
-    analyserNode.current = audioContextRef.current.createAnalyser();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    setAudioContext(ctx);
 
-    compressorNode.current.connect(analyserNode.current);
-    analyserNode.current.connect(audioContextRef.current.destination);
+    masterGainNode.current = ctx.createGain();
+    compressorNode.current = ctx.createDynamicsCompressor();
+    analyserNode.current = ctx.createAnalyser();
+    
+    eqNode.current = createEQ(ctx, eqBands);
+    limiterNode.current = createLimiter(ctx, limiterThreshold);
+    
+    dryGainNode.current = ctx.createGain();
+    wetGainNode.current = ctx.createGain();
+
+    createReverb(ctx).then(reverb => {
+      reverbNode.current = reverb;
+      applyMasteringChain(
+        ctx,
+        masterGainNode.current,
+        compressorNode.current,
+        limiterNode.current,
+        eqNode.current,
+        dryGainNode.current,
+        wetGainNode.current,
+        reverbNode.current,
+        analyserNode.current
+      );
+      updateReverbMix(reverbMix);
+    });
 
     return () => {
-      if (audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close();
+      if (ctx.state !== 'closed') {
+        ctx.close();
       }
     };
   }, []);
@@ -48,7 +85,7 @@ const App = () => {
       )
     );
     if (isPlaying && trackNodes.current[trackId]) {
-      updateTrackVolume(tracks.find(t => t.id === trackId), audioContextRef.current, trackNodes.current[trackId].gainNode);
+      updateTrackVolume(tracks.find(t => t.id === trackId), audioContext, trackNodes.current[trackId].gainNode);
     }
   };
 
@@ -80,11 +117,14 @@ const App = () => {
       trackNodes.current = {};
       setIsPlaying(false);
     } else {
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
       tracks.forEach(track => {
-        const sourceNode = audioContextRef.current.createBufferSource();
+        const sourceNode = audioContext.createBufferSource();
         sourceNode.buffer = track.buffer;
-        const gainNode = audioContextRef.current.createGain();
-        gainNode.gain.setValueAtTime(track.muted ? 0 : track.volume, audioContextRef.current.currentTime);
+        const gainNode = audioContext.createGain();
+        gainNode.gain.setValueAtTime(track.muted ? 0 : track.volume, audioContext.currentTime);
         
         sourceNode.connect(gainNode);
         gainNode.connect(masterGainNode.current);
@@ -101,15 +141,67 @@ const App = () => {
     if (bypassed) {
       masterGainNode.current.disconnect();
       masterGainNode.current.connect(analyserNode.current);
+      analyserNode.current.connect(audioContext.destination);
     } else {
-      masterGainNode.current.disconnect();
-      masterGainNode.current.connect(compressorNode.current);
+      applyMasteringChain(
+        audioContext,
+        masterGainNode.current,
+        compressorNode.current,
+        limiterNode.current,
+        eqNode.current,
+        dryGainNode.current,
+        wetGainNode.current,
+        reverbNode.current,
+        analyserNode.current
+      );
     }
   };
 
   const handleMasterVolumeChange = (newVolume) => {
     setMasterVolume(newVolume);
-    masterGainNode.current.gain.setValueAtTime(newVolume, audioContextRef.current.currentTime);
+    masterGainNode.current.gain.setValueAtTime(newVolume, audioContext.currentTime);
+  };
+
+  const handleCompressorThresholdChange = (newThreshold) => {
+    setCompressorThreshold(newThreshold);
+    if (compressorNode.current) {
+      compressorNode.current.threshold.setValueAtTime(newThreshold, audioContext.currentTime);
+    }
+  };
+
+  const handleCompressorRatioChange = (newRatio) => {
+    setCompressorRatio(newRatio);
+    if (compressorNode.current) {
+      compressorNode.current.ratio.setValueAtTime(newRatio, audioContext.currentTime);
+    }
+  };
+
+  const handleEQChange = (index, updates) => {
+    setEqBands(prevBands => {
+      const newBands = [...prevBands];
+      newBands[index] = { ...newBands[index], ...updates };
+      return newBands;
+    });
+    eqNode.current.updateBand(index, updates);
+  };
+
+  const handleReverbMixChange = (newMix) => {
+    setReverbMix(newMix);
+    updateReverbMix(newMix);
+  };
+
+  const updateReverbMix = (mix) => {
+    if (dryGainNode.current && wetGainNode.current) {
+      dryGainNode.current.gain.setValueAtTime(1 - mix, audioContext.currentTime);
+      wetGainNode.current.gain.setValueAtTime(mix, audioContext.currentTime);
+    }
+  };
+
+  const handleLimiterThresholdChange = (newThreshold) => {
+    setLimiterThreshold(newThreshold);
+    if (limiterNode.current) {
+      limiterNode.current.threshold.setValueAtTime(newThreshold, audioContext.currentTime);
+    }
   };
 
   return (
@@ -136,6 +228,16 @@ const App = () => {
           onBypassChange={handleMasteringBypass}
           masterVolume={masterVolume}
           onMasterVolumeChange={handleMasterVolumeChange}
+          compressorThreshold={compressorThreshold}
+          onCompressorThresholdChange={handleCompressorThresholdChange}
+          compressorRatio={compressorRatio}
+          onCompressorRatioChange={handleCompressorRatioChange}
+          eqBands={eqBands}
+          onEQChange={handleEQChange}
+          reverbMix={reverbMix}
+          onReverbMixChange={handleReverbMixChange}
+          limiterThreshold={limiterThreshold}
+          onLimiterThresholdChange={handleLimiterThresholdChange}
         />
       </div>
     </div>

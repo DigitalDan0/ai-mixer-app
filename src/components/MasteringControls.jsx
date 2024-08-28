@@ -1,75 +1,119 @@
 import React from 'react';
 import './MasteringControls.css';
 
-const MasteringControls = ({ settings, onSettingsChange, isBypassed, onBypassToggle }) => {
-  const handleChange = (settingName, value) => {
-    onSettingsChange({ ...settings, [settingName]: value });
-  };
-
+const MasteringControls = ({
+  isBypassed,
+  onBypassChange,
+  masterVolume,
+  onMasterVolumeChange,
+  compressorThreshold,
+  onCompressorThresholdChange,
+  compressorRatio,
+  onCompressorRatioChange,
+  eqBands,
+  onEQChange,
+  reverbMix,
+  onReverbMixChange,
+  limiterThreshold,
+  onLimiterThresholdChange
+}) => {
   return (
     <div className="mastering-controls">
-      <h2>Mastering</h2>
+      <h2>Mastering Controls</h2>
       <div className="bypass-control">
         <label>
           <input
             type="checkbox"
-            checked={!isBypassed}
-            onChange={() => onBypassToggle(!isBypassed)}
+            checked={isBypassed}
+            onChange={(e) => onBypassChange(e.target.checked)}
           />
-          Enable Mastering
+          Bypass Mastering
         </label>
       </div>
       <div className="control-group">
-        <label>Compressor Threshold</label>
+        <label htmlFor="master-volume">Master Volume</label>
         <input
           type="range"
+          id="master-volume"
+          min="0"
+          max="2"
+          step="0.01"
+          value={masterVolume}
+          onChange={(e) => onMasterVolumeChange(parseFloat(e.target.value))}
+        />
+        <span>{masterVolume.toFixed(2)}</span>
+      </div>
+      <div className="control-group">
+        <label htmlFor="compressor-threshold">Compressor Threshold</label>
+        <input
+          type="range"
+          id="compressor-threshold"
           min="-60"
           max="0"
           step="1"
-          value={settings.compressorThreshold}
-          onChange={(e) => handleChange('compressorThreshold', Number(e.target.value))}
-          disabled={isBypassed}
+          value={compressorThreshold}
+          onChange={(e) => onCompressorThresholdChange(parseFloat(e.target.value))}
         />
-        <span>{settings.compressorThreshold} dB</span>
+        <span>{compressorThreshold} dB</span>
       </div>
       <div className="control-group">
-        <label>Compressor Ratio</label>
+        <label htmlFor="compressor-ratio">Compressor Ratio</label>
         <input
           type="range"
+          id="compressor-ratio"
           min="1"
           max="20"
           step="0.1"
-          value={settings.compressorRatio}
-          onChange={(e) => handleChange('compressorRatio', Number(e.target.value))}
-          disabled={isBypassed}
+          value={compressorRatio}
+          onChange={(e) => onCompressorRatioChange(parseFloat(e.target.value))}
         />
-        <span>{settings.compressorRatio}:1</span>
+        <span>{compressorRatio}:1</span>
       </div>
+      
+      <h3>EQ</h3>
+      {eqBands.map((band, index) => (
+        <div key={index} className="eq-band">
+          <label>{band.type} - {band.frequency}Hz</label>
+          <input
+            type="range"
+            min="-12"
+            max="12"
+            step="0.1"
+            value={band.gain}
+            onChange={(e) => onEQChange(index, { gain: parseFloat(e.target.value) })}
+          />
+          <span>{band.gain.toFixed(1)} dB</span>
+        </div>
+      ))}
+      
+      <h3>Reverb</h3>
       <div className="control-group">
-        <label>Limiter Threshold</label>
+        <label htmlFor="reverb-mix">Reverb Mix</label>
         <input
           type="range"
-          min="-60"
-          max="0"
-          step="1"
-          value={settings.limiterThreshold}
-          onChange={(e) => handleChange('limiterThreshold', Number(e.target.value))}
-          disabled={isBypassed}
+          id="reverb-mix"
+          min="0"
+          max="1"
+          step="0.01"
+          value={reverbMix}
+          onChange={(e) => onReverbMixChange(parseFloat(e.target.value))}
         />
-        <span>{settings.limiterThreshold} dB</span>
+        <span>{(reverbMix * 100).toFixed(0)}%</span>
       </div>
+      
+      <h3>Limiter</h3>
       <div className="control-group">
-        <label>Output Gain</label>
+        <label htmlFor="limiter-threshold">Limiter Threshold</label>
         <input
           type="range"
+          id="limiter-threshold"
           min="-12"
-          max="12"
+          max="0"
           step="0.1"
-          value={settings.outputGain}
-          onChange={(e) => handleChange('outputGain', Number(e.target.value))}
-          disabled={isBypassed}
+          value={limiterThreshold}
+          onChange={(e) => onLimiterThresholdChange(parseFloat(e.target.value))}
         />
-        <span>{settings.outputGain} dB</span>
+        <span>{limiterThreshold.toFixed(1)} dB</span>
       </div>
     </div>
   );
