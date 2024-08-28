@@ -1,45 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
-import TrackList from './components/TrackList';
-import AIAssistant from './components/AIAssistant';
-import TrackUpload from './components/TrackUpload';
-import MasteringControls from './components/MasteringControls';
-import AudioVisualizer from './components/AudioVisualizer';
-import { applyAIChanges } from './services/audioProcessor';
-import { interpretUserRequest } from './services/aiService';
+import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
+import TrackList from './components/TrackList';
+import TrackUpload from './components/TrackUpload';
+import AudioVisualizer from './components/AudioVisualizer';
+import MasteringControls from './components/MasteringControls';
+import AIAssistant from './components/AIAssistant';
+import { processAudioTracks, applyAIChanges, updateTrackVolume, applyMasteringChain } from './services/audioProcessor';
+import { interpretUserRequest, generateMixingSuggestion } from './services/aiService';
 
 const App = () => {
   const [tracks, setTracks] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [masteringSettings, setMasteringSettings] = useState({
-    compressorThreshold: -24,
-    compressorRatio: 4,
-    limiterThreshold: -1,
-    outputGain: 0
-  });
   const [isMasteringBypassed, setIsMasteringBypassed] = useState(false);
-  
+  const [masterVolume, setMasterVolume] = useState(1);
+  const [aiSuggestion, setAiSuggestion] = useState(null);
+
   const audioContextRef = useRef(null);
   const masterGainNode = useRef(null);
+  const compressorNode = useRef(null);
   const analyserNode = useRef(null);
   const trackNodes = useRef({});
-  const compressorNode = useRef(null);
-  const limiterNode = useRef(null);
-  const outputGainNode = useRef(null);
 
   useEffect(() => {
     audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     masterGainNode.current = audioContextRef.current.createGain();
-    analyserNode.current = audioContextRef.current.createAnalyser();
     compressorNode.current = audioContextRef.current.createDynamicsCompressor();
-    limiterNode.current = audioContextRef.current.createDynamicsCompressor();
-    outputGainNode.current = audioContextRef.current.createGain();
-    
-    // Set up the audio processing chain
-    masterGainNode.current.connect(compressorNode.current);
-    compressorNode.current.connect(limiterNode.current);
-    limiterNode.current.connect(outputGainNode.current);
-    outputGainNode.current.connect(analyserNode.current);
+    analyserNode.current = audioContextRef.current.createAnalyser();
+
+    compressorNode.current.connect(analyserNode.current);
     analyserNode.current.connect(audioContextRef.current.destination);
 
     return () => {
@@ -49,41 +37,41 @@ const App = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (compressorNode.current && limiterNode.current && outputGainNode.current) {
-      compressorNode.current.threshold.setValueAtTime(masteringSettings.compressorThreshold, audioContextRef.current.currentTime);
-      compressorNode.current.ratio.setValueAtTime(masteringSettings.compressorRatio, audioContextRef.current.currentTime);
-      limiterNode.current.threshold.setValueAtTime(masteringSettings.limiterThreshold, audioContextRef.current.currentTime);
-      limiterNode.current.ratio.setValueAtTime(20, audioContextRef.current.currentTime); // Fixed high ratio for limiting
-      outputGainNode.current.gain.setValueAtTime(Math.pow(10, masteringSettings.outputGain / 20), audioContextRef.current.currentTime);
-    }
-  }, [masteringSettings]);
-
   const handleTrackUpload = (newTrack) => {
     setTracks(prevTracks => [...prevTracks, newTrack]);
   };
 
-  const handleMixingChange = (trackId, change) => {
-    setTracks(prevTracks => 
-      prevTracks.map(track => 
-        track.id === trackId ? { ...track, ...change } : track
+  const handleMixingChange = (trackId, changes) => {
+    setTracks(prevTracks =>
+      prevTracks.map(track =>
+        track.id === trackId ? { ...track, ...changes } : track
       )
     );
-
-    if (trackNodes.current[trackId]) {
-      if ('volume' in change) {
-        trackNodes.current[trackId].gainNode.gain.setValueAtTime(change.volume, audioContextRef.current.currentTime);
-      }
-      if ('muted' in change) {
-        trackNodes.current[trackId].gainNode.gain.setValueAtTime(change.muted ? 0 : tracks.find(t => t.id === trackId).volume, audioContextRef.current.currentTime);
-      }
+    if (isPlaying && trackNodes.current[trackId]) {
+      updateTrackVolume(tracks.find(t => t.id === trackId), audioContextRef.current, trackNodes.current[trackId].gainNode);
     }
   };
 
   const handleAIRequest = async (request) => {
-    const aiSuggestion = await interpretUserRequest(request);
-    const updatedTracks = await applyAIChanges(tracks, aiSuggestion);
-    setTracks(updatedTracks);
+    try {
+      const aiSuggestion = await interpretUserRequest(request);
+      const updatedTracks = await applyAIChanges(tracks, aiSuggestion);
+      setTracks(updatedTracks);
+      setAiSuggestion(`Applied ${aiSuggestion.effect} with parameters: ${JSON.stringify(aiSuggestion.params)}`);
+    } catch (error) {
+      console.error('Error processing AI request:', error);
+      setAiSuggestion('Unable to process the request. Please try again.');
+    }
+  };
+
+  const handleGenerateSuggestion = async () => {
+    try {
+      const suggestion = await generateMixingSuggestion(tracks);
+      setAiSuggestion(JSON.stringify(suggestion, null, 2));
+    } catch (error) {
+      console.error('Error generating mixing suggestion:', error);
+      setAiSuggestion('Unable to generate mixing suggestion. Please try again.');
+    }
   };
 
   const handlePlayPause = () => {
@@ -119,34 +107,36 @@ const App = () => {
     }
   };
 
+  const handleMasterVolumeChange = (newVolume) => {
+    setMasterVolume(newVolume);
+    masterGainNode.current.gain.setValueAtTime(newVolume, audioContextRef.current.currentTime);
+  };
+
   return (
     <div className="app">
-      <h1>Band Mixing Assistant</h1>
+      <h1>AI Mixer App</h1>
       <TrackUpload onTrackUpload={handleTrackUpload} />
-      <TrackList 
-        tracks={tracks} 
-        onMixingChange={handleMixingChange}
-      />
-      <MasteringControls 
-        settings={masteringSettings} 
-        onSettingsChange={setMasteringSettings}
-        isBypassed={isMasteringBypassed}
-        onBypassToggle={handleMasteringBypass}
-      />
-      <div className="master-output">
-        <h2>Master Output</h2>
-        {analyserNode.current && (
-          <AudioVisualizer 
-            analyserNode={analyserNode.current}
-            height={100}
-          />
-        )}
+      <TrackList tracks={tracks} onMixingChange={handleMixingChange} />
+      <div className="playback-controls">
+        <button onClick={handlePlayPause}>{isPlaying ? 'Pause' : 'Play'}</button>
       </div>
       <AIAssistant onAIRequest={handleAIRequest} />
-      <div className="playback-controls">
-        <button onClick={handlePlayPause}>
-          {isPlaying ? 'Pause' : 'Play'}
-        </button>
+      <button onClick={handleGenerateSuggestion}>Generate Mixing Suggestion</button>
+      {aiSuggestion && (
+        <div className="ai-suggestion">
+          <h3>AI Suggestion:</h3>
+          <pre>{aiSuggestion}</pre>
+        </div>
+      )}
+      <div className="master-output">
+        <h2>Master Output</h2>
+        <AudioVisualizer analyserNode={analyserNode.current} />
+        <MasteringControls
+          isBypassed={isMasteringBypassed}
+          onBypassChange={handleMasteringBypass}
+          masterVolume={masterVolume}
+          onMasterVolumeChange={handleMasterVolumeChange}
+        />
       </div>
     </div>
   );
