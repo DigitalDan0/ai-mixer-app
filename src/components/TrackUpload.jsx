@@ -1,35 +1,47 @@
-import React from 'react';
+import React, { useRef } from 'react';
 
 const TrackUpload = ({ onTrackUpload }) => {
-  const handleFileChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = async (event) => {
+    const files = Array.from(event.target.files);
+    for (const file of files) {
+      try {
+        const buffer = await file.arrayBuffer();
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        audioContext.decodeAudioData(e.target.result, (buffer) => {
-          const newTrack = {
-            id: Date.now(),
-            name: file.name,
-            buffer: buffer,
-            volume: 1,
-            muted: false,
-            soloed: false
-          };
-          onTrackUpload(newTrack);
-        });
-      };
-      reader.readAsArrayBuffer(file);
+        const audioBuffer = await audioContext.decodeAudioData(buffer);
+        
+        const newTrack = {
+          id: Date.now() + Math.random(),
+          name: file.name,
+          buffer: audioBuffer,
+          volume: 1,
+          pan: 0,
+          muted: false,
+          soloed: false,
+          effects: []
+        };
+        
+        onTrackUpload(newTrack);
+      } catch (error) {
+        console.error('Error loading audio file:', error);
+      }
     }
+    fileInputRef.current.value = '';
   };
 
   return (
     <div className="track-upload">
-      <input 
-        type="file" 
+      <input
+        type="file"
+        ref={fileInputRef}
         onChange={handleFileChange}
         accept="audio/*"
+        multiple
       />
+      <button onClick={() => fileInputRef.current.click()}>
+        Upload Tracks
+      </button>
     </div>
   );
 };

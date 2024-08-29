@@ -2,48 +2,60 @@ import React from 'react';
 import './TrackList.css';
 
 const TrackList = ({ tracks, onMixingChange }) => {
-  const handleVolumeChange = (trackId, newVolume) => {
-    onMixingChange(trackId, { volume: newVolume });
+  const handleVolumeChange = (trackId, volume) => {
+    onMixingChange(trackId, { volume: parseFloat(volume) });
+  };
+
+  const handlePanChange = (trackId, pan) => {
+    onMixingChange(trackId, { pan: parseFloat(pan) });
   };
 
   const handleMuteToggle = (trackId) => {
-    onMixingChange(trackId, { muted: !tracks.find(t => t.id === trackId).muted });
+    const track = tracks.find(t => t.id === trackId);
+    onMixingChange(trackId, { muted: !track.muted });
   };
 
   const handleSoloToggle = (trackId) => {
-    onMixingChange(trackId, { soloed: !tracks.find(t => t.id === trackId).soloed });
+    const track = tracks.find(t => t.id === trackId);
+    onMixingChange(trackId, { soloed: !track.soloed });
   };
 
   return (
     <div className="track-list">
-      <h2>Tracks</h2>
       {tracks.map(track => (
-        <div key={track.id} className="track-item">
-          <div className="track-info">
-            <span className="track-name">{track.name}</span>
-            <button 
-              className={`track-button ${track.muted ? 'active' : ''}`} 
-              onClick={() => handleMuteToggle(track.id)}
-            >
-              {track.muted ? 'Unmute' : 'Mute'}
-            </button>
-            <button 
-              className={`track-button ${track.soloed ? 'active' : ''}`} 
-              onClick={() => handleSoloToggle(track.id)}
-            >
-              Solo
-            </button>
-          </div>
+        <div key={track.id} className="track">
+          <div className="track-name">{track.name}</div>
           <div className="track-controls">
             <input
               type="range"
               min="0"
-              max="1"
+              max="2"
               step="0.01"
               value={track.volume}
-              onChange={(e) => handleVolumeChange(track.id, parseFloat(e.target.value))}
-              className="volume-slider"
+              onChange={(e) => handleVolumeChange(track.id, e.target.value)}
             />
+            <span>{track.volume.toFixed(2)}</span>
+            <input
+              type="range"
+              min="-1"
+              max="1"
+              step="0.01"
+              value={track.pan}
+              onChange={(e) => handlePanChange(track.id, e.target.value)}
+            />
+            <span>{track.pan.toFixed(2)}</span>
+            <button
+              className={`mute-button ${track.muted ? 'active' : ''}`}
+              onClick={() => handleMuteToggle(track.id)}
+            >
+              M
+            </button>
+            <button
+              className={`solo-button ${track.soloed ? 'active' : ''}`}
+              onClick={() => handleSoloToggle(track.id)}
+            >
+              S
+            </button>
           </div>
         </div>
       ))}

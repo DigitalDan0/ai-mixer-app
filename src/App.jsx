@@ -5,7 +5,7 @@ import TrackUpload from './components/TrackUpload';
 import AudioVisualizer from './components/AudioVisualizer';
 import MasteringControls from './components/MasteringControls';
 import AIAssistant from './components/AIAssistant';
-import { processAudioTracks, applyAIChanges, updateTrackVolume, createEQ, createReverb, createLimiter, applyMasteringChain } from './services/audioProcessor';
+import { processAudioTracks, applyAIChanges, createEQ, createReverb, createLimiter, applyMasteringChain } from './services/audioProcessor';
 import { interpretUserRequest, generateMixingSuggestion } from './services/aiService';
 
 const App = () => {
@@ -25,8 +25,8 @@ const App = () => {
   ]);
   const [reverbMix, setReverbMix] = useState(0);
   const [limiterThreshold, setLimiterThreshold] = useState(-3);
-  const [audioContext, setAudioContext] = useState(null);
 
+  const audioContextRef = useRef(null);
   const masterGainNode = useRef(null);
   const compressorNode = useRef(null);
   const analyserNode = useRef(null);
@@ -38,23 +38,21 @@ const App = () => {
   const wetGainNode = useRef(null);
 
   useEffect(() => {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    setAudioContext(ctx);
-
-    masterGainNode.current = ctx.createGain();
-    compressorNode.current = ctx.createDynamicsCompressor();
-    analyserNode.current = ctx.createAnalyser();
+    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    masterGainNode.current = audioContextRef.current.createGain();
+    compressorNode.current = audioContextRef.current.createDynamicsCompressor();
+    analyserNode.current = audioContextRef.current.createAnalyser();
     
-    eqNode.current = createEQ(ctx, eqBands);
-    limiterNode.current = createLimiter(ctx, limiterThreshold);
+    eqNode.current = createEQ(audioContextRef.current, eqBands);
+    limiterNode.current = createLimiter(audioContextRef.current, limiterThreshold);
     
-    dryGainNode.current = ctx.createGain();
-    wetGainNode.current = ctx.createGain();
+    dryGainNode.current = audioContextRef.current.createGain();
+    wetGainNode.current = audioContextRef.current.createGain();
 
-    createReverb(ctx).then(reverb => {
+    createReverb(audioContextRef.current).then(reverb => {
       reverbNode.current = reverb;
       applyMasteringChain(
-        ctx,
+        audioContextRef.current,
         masterGainNode.current,
         compressorNode.current,
         limiterNode.current,
@@ -68,8 +66,8 @@ const App = () => {
     });
 
     return () => {
-      if (ctx.state !== 'closed') {
-        ctx.close();
+      if (audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close();
       }
     };
   }, []);
@@ -84,8 +82,40 @@ const App = () => {
         track.id === trackId ? { ...track, ...changes } : track
       )
     );
-    if (isPlaying && trackNodes.current[trackId]) {
-      updateTrackVolume(tracks.find(t => t.id === trackId), audioContext, trackNodes.current[trackId].gainNode);
+    if (isPlaying) {
+      updateTrackAudio(trackId, changes);
+    }
+  };
+
+  const updateTrackAudio = (trackId, changes) => {
+    const trackNode = trackNodes.current[trackId];
+    if (!trackNode) return;
+
+    const { gainNode, pannerNode } = trackNode;
+    const track = tracks.find(t => t.id === trackId);
+
+    if ('volume' in changes) {
+      gainNode.gain.setValueAtTime(changes.volume, audioContextRef.current.currentTime);
+    }
+
+    if ('pan' in changes) {
+      pannerNode.pan.setValueAtTime(changes.pan, audioContextRef.current.currentTime);
+    }
+
+    if ('muted' in changes) {
+      gainNode.gain.setValueAtTime(changes.muted ? 0 : track.volume, audioContextRef.current.currentTime);
+    }
+
+    // Handle soloing logic
+    if ('soloed' in changes) {
+      const soloedTracks = tracks.filter(t => t.id === trackId ? changes.soloed : t.soloed);
+      tracks.forEach(t => {
+        const node = trackNodes.current[t.id];
+        if (node) {
+          const shouldPlay = soloedTracks.length === 0 || t.soloed || t.id === trackId;
+          node.gainNode.gain.setValueAtTime(shouldPlay && !t.muted ? t.volume : 0, audioContextRef.current.currentTime);
+        }
+      });
     }
   };
 
@@ -117,20 +147,25 @@ const App = () => {
       trackNodes.current = {};
       setIsPlaying(false);
     } else {
-      if (audioContext.state === 'suspended') {
-        audioContext.resume();
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
       }
       tracks.forEach(track => {
-        const sourceNode = audioContext.createBufferSource();
+        const sourceNode = audioContextRef.current.createBufferSource();
         sourceNode.buffer = track.buffer;
-        const gainNode = audioContext.createGain();
-        gainNode.gain.setValueAtTime(track.muted ? 0 : track.volume, audioContext.currentTime);
         
-        sourceNode.connect(gainNode);
+        const gainNode = audioContextRef.current.createGain();
+        gainNode.gain.setValueAtTime(track.muted ? 0 : track.volume, audioContextRef.current.currentTime);
+        
+        const pannerNode = audioContextRef.current.createStereoPanner();
+        pannerNode.pan.setValueAtTime(track.pan, audioContextRef.current.currentTime);
+        
+        sourceNode.connect(pannerNode);
+        pannerNode.connect(gainNode);
         gainNode.connect(masterGainNode.current);
         
         sourceNode.start();
-        trackNodes.current[track.id] = { sourceNode, gainNode };
+        trackNodes.current[track.id] = { sourceNode, gainNode, pannerNode };
       });
       setIsPlaying(true);
     }
@@ -141,10 +176,10 @@ const App = () => {
     if (bypassed) {
       masterGainNode.current.disconnect();
       masterGainNode.current.connect(analyserNode.current);
-      analyserNode.current.connect(audioContext.destination);
+      analyserNode.current.connect(audioContextRef.current.destination);
     } else {
       applyMasteringChain(
-        audioContext,
+        audioContextRef.current,
         masterGainNode.current,
         compressorNode.current,
         limiterNode.current,
@@ -159,20 +194,20 @@ const App = () => {
 
   const handleMasterVolumeChange = (newVolume) => {
     setMasterVolume(newVolume);
-    masterGainNode.current.gain.setValueAtTime(newVolume, audioContext.currentTime);
+    masterGainNode.current.gain.setValueAtTime(newVolume, audioContextRef.current.currentTime);
   };
 
   const handleCompressorThresholdChange = (newThreshold) => {
     setCompressorThreshold(newThreshold);
     if (compressorNode.current) {
-      compressorNode.current.threshold.setValueAtTime(newThreshold, audioContext.currentTime);
+      compressorNode.current.threshold.setValueAtTime(newThreshold, audioContextRef.current.currentTime);
     }
   };
 
   const handleCompressorRatioChange = (newRatio) => {
     setCompressorRatio(newRatio);
     if (compressorNode.current) {
-      compressorNode.current.ratio.setValueAtTime(newRatio, audioContext.currentTime);
+      compressorNode.current.ratio.setValueAtTime(newRatio, audioContextRef.current.currentTime);
     }
   };
 
@@ -192,15 +227,15 @@ const App = () => {
 
   const updateReverbMix = (mix) => {
     if (dryGainNode.current && wetGainNode.current) {
-      dryGainNode.current.gain.setValueAtTime(1 - mix, audioContext.currentTime);
-      wetGainNode.current.gain.setValueAtTime(mix, audioContext.currentTime);
+      dryGainNode.current.gain.setValueAtTime(1 - mix, audioContextRef.current.currentTime);
+      wetGainNode.current.gain.setValueAtTime(mix, audioContextRef.current.currentTime);
     }
   };
 
   const handleLimiterThresholdChange = (newThreshold) => {
     setLimiterThreshold(newThreshold);
     if (limiterNode.current) {
-      limiterNode.current.threshold.setValueAtTime(newThreshold, audioContext.currentTime);
+      limiterNode.current.threshold.setValueAtTime(newThreshold, audioContextRef.current.currentTime);
     }
   };
 
