@@ -19,6 +19,15 @@ const TrackUpload = ({ onTrackUpload }) => {
           pan: 0,
           muted: false,
           soloed: false,
+          eq: {
+            low: 0,
+            mid: 0,
+            high: 0
+          },
+          compression: {
+            threshold: -24,
+            ratio: 4
+          },
           effects: []
         };
         
