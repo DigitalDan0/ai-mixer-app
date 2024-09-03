@@ -1,10 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
-import TrackList from './components/TrackList';
-import TrackUpload from './components/TrackUpload';
-import AudioVisualizer from './components/AudioVisualizer';
-import MasteringControls from './components/MasteringControls';
-import AIAssistant from './components/AIAssistant';
+import MixingStage from './components/MixingStage';
+import MasteringStage from './components/MasteringStage';
 import { processAudioTracks, applyAIChanges, createEQ, createReverb, createLimiter, applyMasteringChain } from './services/audioProcessor';
 import { interpretUserRequest, generateMixingSuggestion } from './services/aiService';
 
@@ -242,39 +239,34 @@ const App = () => {
   return (
     <div className="app">
       <h1>AI Mixer App</h1>
-      <TrackUpload onTrackUpload={handleTrackUpload} />
-      <TrackList tracks={tracks} onMixingChange={handleMixingChange} />
-      <div className="playback-controls">
-        <button onClick={handlePlayPause}>{isPlaying ? 'Pause' : 'Play'}</button>
-      </div>
-      <AIAssistant onAIRequest={handleAIRequest} />
-      <button onClick={handleGenerateSuggestion}>Generate Mixing Suggestion</button>
-      {aiSuggestion && (
-        <div className="ai-suggestion">
-          <h3>AI Suggestion:</h3>
-          <pre>{aiSuggestion}</pre>
-        </div>
-      )}
-      <div className="master-output">
-        <h2>Master Output</h2>
-        <AudioVisualizer analyserNode={analyserNode.current} />
-        <MasteringControls
-          isBypassed={isMasteringBypassed}
-          onBypassChange={handleMasteringBypass}
-          masterVolume={masterVolume}
-          onMasterVolumeChange={handleMasterVolumeChange}
-          compressorThreshold={compressorThreshold}
-          onCompressorThresholdChange={handleCompressorThresholdChange}
-          compressorRatio={compressorRatio}
-          onCompressorRatioChange={handleCompressorRatioChange}
-          eqBands={eqBands}
-          onEQChange={handleEQChange}
-          reverbMix={reverbMix}
-          onReverbMixChange={handleReverbMixChange}
-          limiterThreshold={limiterThreshold}
-          onLimiterThresholdChange={handleLimiterThresholdChange}
-        />
-      </div>
+      <MixingStage
+        tracks={tracks}
+        onTrackUpload={handleTrackUpload}
+        onMixingChange={handleMixingChange}
+        onAIRequest={handleAIRequest}
+        analyserNode={analyserNode.current}
+        isPlaying={isPlaying}
+        onPlayPause={handlePlayPause}
+        onGenerateSuggestion={handleGenerateSuggestion}
+        aiSuggestion={aiSuggestion}
+      />
+      <MasteringStage
+        isBypassed={isMasteringBypassed}
+        onBypassChange={handleMasteringBypass}
+        masterVolume={masterVolume}
+        onMasterVolumeChange={handleMasterVolumeChange}
+        compressorThreshold={compressorThreshold}
+        onCompressorThresholdChange={handleCompressorThresholdChange}
+        compressorRatio={compressorRatio}
+        onCompressorRatioChange={handleCompressorRatioChange}
+        eqBands={eqBands}
+        onEQChange={handleEQChange}
+        reverbMix={reverbMix}
+        onReverbMixChange={handleReverbMixChange}
+        limiterThreshold={limiterThreshold}
+        onLimiterThresholdChange={handleLimiterThresholdChange}
+        analyserNode={analyserNode.current}
+      />
     </div>
   );
 };
