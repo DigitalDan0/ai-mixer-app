@@ -5,11 +5,14 @@ const TrackUpload = ({ onTrackUpload }) => {
 
   const handleFileChange = async (event) => {
     const files = Array.from(event.target.files);
+    console.log('Files selected:', files);
     for (const file of files) {
       try {
         const buffer = await file.arrayBuffer();
+        console.log('File converted to ArrayBuffer');
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const audioBuffer = await audioContext.decodeAudioData(buffer);
+        console.log('AudioBuffer created');
         
         const newTrack = {
           id: Date.now() + Math.random(),
@@ -31,6 +34,7 @@ const TrackUpload = ({ onTrackUpload }) => {
           effects: []
         };
         
+        console.log('New track object created:', newTrack);
         onTrackUpload(newTrack);
       } catch (error) {
         console.error('Error loading audio file:', error);

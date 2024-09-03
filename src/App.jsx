@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 import MixingStage from './components/MixingStage';
 import MasteringStage from './components/MasteringStage';
-import { createEQ, createCompressor, updateTrackProcessing, applyAIMixingSuggestions } from './services/audioProcessor';
+import { createEQ, createCompressor, updateTrackProcessing, analyzeTrack } from './services/audioProcessor';
 import { interpretUserRequest, generateMixingSuggestion } from './services/aiService';
 
 const App = () => {
@@ -41,8 +41,17 @@ const App = () => {
     };
   }, []);
 
-  const handleTrackUpload = (newTrack) => {
-    setTracks(prevTracks => [...prevTracks, newTrack]);
+  const handleTrackUpload = async (newTrack) => {
+    try {
+      console.log('Received new track:', newTrack);
+      const analysis = await analyzeTrack(newTrack.buffer);
+      console.log('Track analysis completed:', analysis);
+      const analyzedTrack = { ...newTrack, analysis };
+      setTracks(prevTracks => [...prevTracks, analyzedTrack]);
+    } catch (error) {
+      console.error('Error during track upload:', error);
+      setTracks(prevTracks => [...prevTracks, newTrack]);
+    }
   };
 
   const handleMixingChange = (trackId, changes) => {
@@ -60,71 +69,38 @@ const App = () => {
     const trackNode = trackNodes.current[trackId];
     if (!trackNode) return;
 
-    const { gainNode, pannerNode, eqNode, compressorNode } = trackNode;
-    const track = tracks.find(t => t.id === trackId);
-
-    updateTrackProcessing(track, audioContextRef.current, gainNode, pannerNode, eqNode, compressorNode);
-  };
-
-  const handleAIRequest = async (request) => {
-    try {
-      const suggestion = await interpretUserRequest(request, tracks);
-      setAiSuggestion(aiSuggestion);
-    } catch (error) {
-      console.error('Error processing AI request:', error);
-      setAiSuggestion(null);
-    }
-  };
-
-  const handleGenerateSuggestion = async () => {
-    try {
-      const suggestion = await generateMixingSuggestion(tracks);
-      setAiSuggestion(aiSuggestion);
-    } catch (error) {
-      console.error('Error generating mixing suggestion:', error);
-      setAiSuggestion('Unable to generate mixing suggestion. Please try again.');
-    }
-  };
-
-  const handleApplyAIMix = () => {
-    if (aiSuggestion) {
-      const updatedTracks = applyAIMixingSuggestions(tracks, aiSuggestion);
-      setTracks(updatedTracks);
-      updatedTracks.forEach(track => {
-        updateTrackAudio(track.id, track);
-      });
-    }
+    updateTrackProcessing(changes, audioContextRef.current, trackNode.gainNode, trackNode.pannerNode, trackNode.eqNode, trackNode.compressorNode);
   };
 
   const handlePlayPause = () => {
     if (isPlaying) {
-      Object.values(trackNodes.current).forEach(({ sourceNode }) => sourceNode.stop());
-      trackNodes.current = {};
+      audioContextRef.current.suspend();
       setIsPlaying(false);
     } else {
       if (audioContextRef.current.state === 'suspended') {
         audioContextRef.current.resume();
+      } else {
+        tracks.forEach(track => {
+          const sourceNode = audioContextRef.current.createBufferSource();
+          sourceNode.buffer = track.buffer;
+
+          const gainNode = audioContextRef.current.createGain();
+          const pannerNode = audioContextRef.current.createStereoPanner();
+          const eqNode = createEQ(audioContextRef.current);
+          const compressorNode = createCompressor(audioContextRef.current);
+
+          sourceNode.connect(eqNode.input);
+          eqNode.output.connect(compressorNode);
+          compressorNode.connect(pannerNode);
+          pannerNode.connect(gainNode);
+          gainNode.connect(masterGainNode.current);
+          
+          updateTrackProcessing(track, audioContextRef.current, gainNode, pannerNode, eqNode, compressorNode);
+          
+          sourceNode.start();
+          trackNodes.current[track.id] = { sourceNode, gainNode, pannerNode, eqNode, compressorNode };
+        });
       }
-      tracks.forEach(track => {
-        const sourceNode = audioContextRef.current.createBufferSource();
-        sourceNode.buffer = track.buffer;
-        
-        const gainNode = audioContextRef.current.createGain();
-        const pannerNode = audioContextRef.current.createStereoPanner();
-        const eqNode = createEQ(audioContextRef.current);
-        const compressorNode = createCompressor(audioContextRef.current);
-        
-        sourceNode.connect(eqNode.input);
-        eqNode.output.connect(compressorNode);
-        compressorNode.connect(pannerNode);
-        pannerNode.connect(gainNode);
-        gainNode.connect(masterGainNode.current);
-        
-        updateTrackProcessing(track, audioContextRef.current, gainNode, pannerNode, eqNode, compressorNode);
-        
-        sourceNode.start();
-        trackNodes.current[track.id] = { sourceNode, gainNode, pannerNode, eqNode, compressorNode };
-      });
       setIsPlaying(true);
     }
   };
@@ -137,6 +113,57 @@ const App = () => {
   const handleMasterVolumeChange = (newVolume) => {
     setMasterVolume(newVolume);
     masterGainNode.current.gain.setValueAtTime(newVolume, audioContextRef.current.currentTime);
+  };
+
+  const handleAIRequest = async (userInput) => {
+    try {
+      const suggestion = await interpretUserRequest(userInput, tracks);
+      setAiSuggestion(suggestion);
+    } catch (error) {
+      console.error('Error handling AI request:', error);
+      setAiSuggestion('Error: Unable to process AI request');
+    }
+  };
+
+  const handleGenerateSuggestion = async () => {
+    try {
+      const suggestion = await generateMixingSuggestion(tracks);
+      setAiSuggestion(suggestion);
+    } catch (error) {
+      console.error('Error generating mixing suggestion:', error);
+      setAiSuggestion('Error: Unable to generate mixing suggestion');
+    }
+  };
+
+  const handleApplyAIMix = () => {
+    if (aiSuggestion) {
+      const updatedTracks = tracks.map(track => {
+        const suggestion = aiSuggestion.find(s => s.trackName === track.name);
+        if (suggestion) {
+          const { adjustments } = suggestion;
+          return {
+            ...track,
+            volume: adjustments.volume !== undefined ? adjustments.volume : track.volume,
+            pan: adjustments.pan !== undefined ? adjustments.pan : track.pan,
+            eq: {
+              low: adjustments.eq?.low !== undefined ? adjustments.eq.low : track.eq.low,
+              mid: adjustments.eq?.mid !== undefined ? adjustments.eq.mid : track.eq.mid,
+              high: adjustments.eq?.high !== undefined ? adjustments.eq.high : track.eq.high,
+            },
+            compression: {
+              threshold: adjustments.compression?.threshold !== undefined ? adjustments.compression.threshold : track.compression.threshold,
+              ratio: adjustments.compression?.ratio !== undefined ? adjustments.compression.ratio : track.compression.ratio,
+            },
+          };
+        }
+        return track;
+      });
+
+      setTracks(updatedTracks);
+      updatedTracks.forEach(track => {
+        updateTrackAudio(track.id, track);
+      });
+    }
   };
 
   return (

@@ -1,3 +1,5 @@
+import * as Tone from 'tone';
+
 export const createEQ = (audioContext) => {
   const lowFilter = audioContext.createBiquadFilter();
   lowFilter.type = 'lowshelf';
@@ -54,7 +56,6 @@ export const updateTrackProcessing = (track, audioContext, gainNode, pannerNode,
     compressorNode.ratio.setValueAtTime(track.compression.ratio, audioContext.currentTime);
   }
 };
-
 // Add this function to the existing audioProcessor.js file
 
 export const applyAIMixingSuggestions = (tracks, suggestions) => {
@@ -79,4 +80,35 @@ export const applyAIMixingSuggestions = (tracks, suggestions) => {
     }
     return track;
   });
+};
+export const analyzeTrack = async (audioBuffer) => {
+  const analyzer = new Tone.Analyser('fft', 2048);
+  const player = new Tone.Player(audioBuffer).connect(analyzer);
+  
+  await Tone.loaded();
+  player.start();
+
+  const loudness = new Tone.Meter();
+  player.connect(loudness);
+
+  const spectralCentroid = new Tone.FFT(2048);
+  player.connect(spectralCentroid);
+
+  await new Promise(resolve => setTimeout(resolve, audioBuffer.duration * 1000));
+
+  const fftData = analyzer.getValue();
+  const loudnessValue = loudness.getValue();
+  const centroidValue = spectralCentroid.getValue();
+
+  player.stop();
+  player.dispose();
+  analyzer.dispose();
+  loudness.dispose();
+  spectralCentroid.dispose();
+
+  return {
+    fft: Array.from(fftData),
+    loudness: loudnessValue,
+    spectralCentroid: centroidValue,
+  };
 };

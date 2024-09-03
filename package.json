@@ -22,6 +22,7 @@
     "natural": "^8.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "tone": "^15.0.4",
     "wavesurfer.js": "^7.8.4"
   }
 }
