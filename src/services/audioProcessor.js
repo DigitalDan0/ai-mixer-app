@@ -54,3 +54,29 @@ export const updateTrackProcessing = (track, audioContext, gainNode, pannerNode,
     compressorNode.ratio.setValueAtTime(track.compression.ratio, audioContext.currentTime);
   }
 };
+
+// Add this function to the existing audioProcessor.js file
+
+export const applyAIMixingSuggestions = (tracks, suggestions) => {
+  return tracks.map(track => {
+    const suggestion = suggestions.find(s => s.trackName === track.name);
+    if (suggestion) {
+      const { adjustments } = suggestion;
+      return {
+        ...track,
+        volume: adjustments.volume !== undefined ? adjustments.volume : track.volume,
+        pan: adjustments.pan !== undefined ? adjustments.pan : track.pan,
+        eq: {
+          low: adjustments.eq?.low !== undefined ? adjustments.eq.low : track.eq.low,
+          mid: adjustments.eq?.mid !== undefined ? adjustments.eq.mid : track.eq.mid,
+          high: adjustments.eq?.high !== undefined ? adjustments.eq.high : track.eq.high,
+        },
+        compression: {
+          threshold: adjustments.compression?.threshold !== undefined ? adjustments.compression.threshold : track.compression.threshold,
+          ratio: adjustments.compression?.ratio !== undefined ? adjustments.compression.ratio : track.compression.ratio,
+        },
+      };
+    }
+    return track;
+  });
+};

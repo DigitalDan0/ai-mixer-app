@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 import MixingStage from './components/MixingStage';
 import MasteringStage from './components/MasteringStage';
-import { createEQ, createCompressor, updateTrackProcessing } from './services/audioProcessor';
+import { createEQ, createCompressor, updateTrackProcessing, applyAIMixingSuggestions } from './services/audioProcessor';
 import { interpretUserRequest, generateMixingSuggestion } from './services/aiService';
 
 const App = () => {
@@ -68,23 +68,31 @@ const App = () => {
 
   const handleAIRequest = async (request) => {
     try {
-      const aiSuggestion = await interpretUserRequest(request);
-      const updatedTracks = await applyAIChanges(tracks, aiSuggestion);
-      setTracks(updatedTracks);
-      setAiSuggestion(`Applied ${aiSuggestion.effect} with parameters: ${JSON.stringify(aiSuggestion.params)}`);
+      const suggestion = await interpretUserRequest(request, tracks);
+      setAiSuggestion(aiSuggestion);
     } catch (error) {
       console.error('Error processing AI request:', error);
-      setAiSuggestion('Unable to process the request. Please try again.');
+      setAiSuggestion(null);
     }
   };
 
   const handleGenerateSuggestion = async () => {
     try {
       const suggestion = await generateMixingSuggestion(tracks);
-      setAiSuggestion(JSON.stringify(suggestion, null, 2));
+      setAiSuggestion(aiSuggestion);
     } catch (error) {
       console.error('Error generating mixing suggestion:', error);
       setAiSuggestion('Unable to generate mixing suggestion. Please try again.');
+    }
+  };
+
+  const handleApplyAIMix = () => {
+    if (aiSuggestion) {
+      const updatedTracks = applyAIMixingSuggestions(tracks, aiSuggestion);
+      setTracks(updatedTracks);
+      updatedTracks.forEach(track => {
+        updateTrackAudio(track.id, track);
+      });
     }
   };
 
@@ -139,6 +147,7 @@ const App = () => {
         onTrackUpload={handleTrackUpload}
         onMixingChange={handleMixingChange}
         onAIRequest={handleAIRequest}
+        onApplyAIMix={handleApplyAIMix}
         analyserNode={analyserNode.current}
         isPlaying={isPlaying}
         onPlayPause={handlePlayPause}

@@ -1,0 +1,79 @@
+.ai-assistant {
+    background-color: #f0f0f0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .ai-assistant h2 {
+    color: #333;
+    margin-bottom: 15px;
+  }
+  
+  .ai-assistant form {
+    display: flex;
+    margin-bottom: 15px;
+  }
+  
+  .ai-assistant input[type="text"] {
+    flex-grow: 1;
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px 0 0 4px;
+  }
+  
+  .ai-assistant button {
+    padding: 10px 15px;
+    font-size: 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .ai-assistant button:hover {
+    background-color: #45a049;
+  }
+  
+  .generate-suggestion {
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+    background-color: #008CBA;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .generate-suggestion:hover {
+    background-color: #007B9A;
+  }
+  
+  .ai-suggestion {
+    margin-top: 20px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+  }
+  
+  .ai-suggestion h3 {
+    color: #333;
+    margin-bottom: 10px;
+  }
+  
+  .ai-suggestion pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background-color: #f5f5f5;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
