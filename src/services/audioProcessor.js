@@ -109,6 +109,17 @@ export const analyzeTrack = async (audioBuffer) => {
   return {
     fft: Array.from(fftData),
     loudness: loudnessValue,
-    spectralCentroid: centroidValue,
+    spectralCentroid: calculateSpectralCentroid(centroidValue),
   };
+};
+
+const calculateSpectralCentroid = (fftData) => {
+  let weightedSum = 0;
+  let totalMagnitude = 0;
+  for (let i = 0; i < fftData.length; i++) {
+    const magnitude = Math.abs(fftData[i]);
+    weightedSum += magnitude * i;
+    totalMagnitude += magnitude;
+  }
+  return totalMagnitude > 0 ? weightedSum / totalMagnitude : 0;
 };

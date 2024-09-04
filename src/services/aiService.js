@@ -49,16 +49,19 @@ export const generateMixingSuggestion = async (tracks) => {
 };
 
 const generateBatchSuggestions = async (trackBatch) => {
-  const tracksDescription = trackBatch.map(track => 
-    `${track.name}:
-     Volume: ${track.volume.toFixed(2)}
-     Pan: ${track.pan.toFixed(2)}
-     EQ: low ${track.eq.low.toFixed(1)}dB, mid ${track.eq.mid.toFixed(1)}dB, high ${track.eq.high.toFixed(1)}dB
-     Compression: threshold ${track.compression.threshold.toFixed(1)}dB, ratio ${track.compression.ratio.toFixed(1)}:1
-     Loudness: ${track.analysis.loudness.toFixed(2)} dB
-     Spectral Centroid: ${track.analysis.spectralCentroid.toFixed(2)} Hz
-     FFT Data: ${JSON.stringify(track.analysis.fft.slice(0, 10))}... (truncated)`
-  ).join('\n\n');
+  const tracksDescription = trackBatch.map(track => {
+    const { name, volume, pan, eq, compression, analysis } = track;
+    return `
+      ${name}:
+      Volume: ${volume.toFixed(2)}
+      Pan: ${pan.toFixed(2)}
+      EQ: low ${eq.low.toFixed(1)}dB, mid ${eq.mid.toFixed(1)}dB, high ${eq.high.toFixed(1)}dB
+      Compression: threshold ${compression.threshold.toFixed(1)}dB, ratio ${compression.ratio.toFixed(1)}:1
+      Loudness: ${analysis.loudness.toFixed(2)} dB
+      Spectral Centroid: ${analysis.spectralCentroid.toFixed(2)} Hz
+      FFT Data: ${JSON.stringify(analysis.fft.slice(0, 10))}... (truncated)
+    `.trim();
+  }).join('\n\n');
 
   const prompt = `As an expert audio engineer, analyze the following ${trackBatch.length} tracks in a mix and provide detailed mixing suggestions to improve their balance and quality:
 
@@ -90,7 +93,13 @@ Respond in JSON format with the following structure:
 
   try {
     const response = await callClaudeAPI(prompt);
-    return JSON.parse(response);
+    const parsedResponse = JSON.parse(response);
+    
+    if (!parsedResponse.trackSuggestions || !Array.isArray(parsedResponse.trackSuggestions)) {
+      throw new Error('Invalid response format from AI');
+    }
+
+    return parsedResponse;
   } catch (error) {
     console.error('Error generating batch mixing suggestion:', error);
     throw new Error('Unable to generate batch mixing suggestion');
@@ -122,17 +131,11 @@ Respond with a concise paragraph of mixing advice.`;
 const callClaudeAPI = async (prompt) => {
   try {
     const response = await axios.post(
-      CLAUDE_API_URL,
-      {
-        prompt: prompt,
-        model: 'claude-v1',
-        max_tokens_to_sample: 2000,
-        temperature: 0.7,
-      },
+      'http://localhost:3000/api/claude',
+      { prompt },
       {
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': CLAUDE_API_KEY,
         },
       }
     );

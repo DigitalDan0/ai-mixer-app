@@ -158,7 +158,7 @@ const App = () => {
         }
         return track;
       });
-
+        isBypassed={isMasteringBypassed}
       setTracks(updatedTracks);
       updatedTracks.forEach(track => {
         updateTrackAudio(track.id, track);
