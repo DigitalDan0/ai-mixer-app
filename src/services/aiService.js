@@ -49,21 +49,22 @@ export const generateMixingSuggestion = async (tracks) => {
 };
 
 const generateBatchSuggestions = async (trackBatch) => {
-  const tracksDescription = trackBatch.map(track => {
-    const { name, volume, pan, eq, compression, analysis } = track;
-    return `
-      ${name}:
-      Volume: ${volume.toFixed(2)}
-      Pan: ${pan.toFixed(2)}
-      EQ: low ${eq.low.toFixed(1)}dB, mid ${eq.mid.toFixed(1)}dB, high ${eq.high.toFixed(1)}dB
-      Compression: threshold ${compression.threshold.toFixed(1)}dB, ratio ${compression.ratio.toFixed(1)}:1
-      Loudness: ${analysis.loudness.toFixed(2)} dB
-      Spectral Centroid: ${analysis.spectralCentroid.toFixed(2)} Hz
-      FFT Data: ${JSON.stringify(analysis.fft.slice(0, 10))}... (truncated)
-    `.trim();
-  }).join('\n\n');
+  try {
+    const tracksDescription = trackBatch.map(track => {
+      const { name, volume, pan, eq, compression, analysis } = track;
+      return `
+        ${name}:
+        Volume: ${volume.toFixed(2)}
+        Pan: ${pan.toFixed(2)}
+        EQ: low ${eq.low.toFixed(1)}dB, mid ${eq.mid.toFixed(1)}dB, high ${eq.high.toFixed(1)}dB
+        Compression: threshold ${compression.threshold.toFixed(1)}dB, ratio ${compression.ratio.toFixed(1)}:1
+        Loudness: ${analysis.loudness.toFixed(2)} dB
+        Spectral Centroid: ${analysis.spectralCentroid.toFixed(2)} Hz
+        FFT Data: ${JSON.stringify(analysis.fft.slice(0, 10))}... (truncated)
+      `.trim();
+    }).join('\n\n');
 
-  const prompt = `As an expert audio engineer, analyze the following ${trackBatch.length} tracks in a mix and provide detailed mixing suggestions to improve their balance and quality:
+    const prompt = `As an expert audio engineer, analyze the following ${trackBatch.length} tracks in a mix and provide detailed mixing suggestions to improve their balance and quality:
 
 ${tracksDescription}
 
@@ -91,8 +92,9 @@ Respond in JSON format with the following structure:
   ]
 }`;
 
-  try {
+    console.log('Generating batch suggestions with prompt:', prompt);
     const response = await callClaudeAPI(prompt);
+    console.log('Received response from Claude API:', response);
     const parsedResponse = JSON.parse(response);
     
     if (!parsedResponse.trackSuggestions || !Array.isArray(parsedResponse.trackSuggestions)) {
@@ -130,6 +132,7 @@ Respond with a concise paragraph of mixing advice.`;
 
 const callClaudeAPI = async (prompt) => {
   try {
+    console.log('Sending request to Claude API with prompt:', prompt);
     const response = await axios.post(
       'http://localhost:3000/api/claude',
       { prompt },
@@ -139,10 +142,15 @@ const callClaudeAPI = async (prompt) => {
         },
       }
     );
-
+    console.log('Received response from Claude API:', response.data);
     return response.data.completion;
   } catch (error) {
     console.error('Error calling Claude API:', error);
-    throw new Error('Failed to get response from Claude API');
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
+      console.error('Response headers:', error.response.headers);
+    }
+    throw new Error(`Failed to get response from Claude API: ${error.response?.data?.details || error.message}`);
   }
 };

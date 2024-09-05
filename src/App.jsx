@@ -127,11 +127,13 @@ const App = () => {
 
   const handleGenerateSuggestion = async () => {
     try {
+      console.log('Generating mixing suggestion for tracks:', tracks);
       const suggestion = await generateMixingSuggestion(tracks);
+      console.log('Received AI suggestion:', suggestion);
       setAiSuggestion(suggestion);
     } catch (error) {
       console.error('Error generating mixing suggestion:', error);
-      setAiSuggestion('Error: Unable to generate mixing suggestion');
+      setAiSuggestion('Error: Unable to generate mixing suggestion. Please check the console for more details.');
     }
   };
 

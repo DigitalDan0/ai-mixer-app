@@ -20,29 +20,33 @@ const CLAUDE_API_URL = process.env.CLAUDE_API_URL || 'https://api.anthropic.com/
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 
 app.post('/api/claude', async (req, res) => {
-  try {
-    const response = await axios.post(
-      CLAUDE_API_URL,
-      {
-        prompt: req.body.prompt,
-        model: 'claude-v1',
-        max_tokens_to_sample: 2000,
-        temperature: 0.7,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': CLAUDE_API_KEY,
+    try {
+      console.log('Received request to Claude API:', req.body);
+      const response = await axios.post(
+        CLAUDE_API_URL,
+        {
+          prompt: req.body.prompt,
+          model: 'claude-v1',
+          max_tokens_to_sample: 2000,
+          temperature: 0.7,
         },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': CLAUDE_API_KEY,
+          },
+        }
+      );
+      console.log('Received response from Claude API:', response.data);
+      res.json({ completion: response.data.completion });
+    } catch (error) {
+      console.error('Error calling Claude API:', error);
+      if (error.response) {
+        console.error('Claude API error response:', error.response.data);
       }
-    );
-
-    res.json({ completion: response.data.completion });
-  } catch (error) {
-    console.error('Error calling Claude API:', error);
-    res.status(500).json({ error: 'Failed to get response from Claude API' });
-  }
-});
+      res.status(500).json({ error: 'Failed to get response from Claude API', details: error.message });
+    }
+  });
 
 app.listen(port, () => {
   console.log(`Backend server listening at http://localhost:${port}`);

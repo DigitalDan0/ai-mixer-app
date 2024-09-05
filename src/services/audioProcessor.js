@@ -94,7 +94,8 @@ export const analyzeTrack = async (audioBuffer) => {
   const spectralCentroid = new Tone.FFT(2048);
   player.connect(spectralCentroid);
 
-  await new Promise(resolve => setTimeout(resolve, audioBuffer.duration * 1000));
+  // Wait for a short time to ensure we get valid data
+  await new Promise(resolve => setTimeout(resolve, 100));
 
   const fftData = analyzer.getValue();
   const loudnessValue = loudness.getValue();
@@ -108,8 +109,8 @@ export const analyzeTrack = async (audioBuffer) => {
 
   return {
     fft: Array.from(fftData),
-    loudness: loudnessValue,
-    spectralCentroid: calculateSpectralCentroid(centroidValue),
+    loudness: isFinite(loudnessValue) ? loudnessValue : -60, // Default to -60dB if invalid
+    spectralCentroid: calculateSpectralCentroid(centroidValue) || 0, // Default to 0 if invalid
   };
 };
 
