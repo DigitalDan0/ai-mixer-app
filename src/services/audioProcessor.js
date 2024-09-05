@@ -107,6 +107,15 @@ export const analyzeTrack = async (audioBuffer) => {
   // Calculate zero-crossing rate
   const zeroCrossingRate = calculateZeroCrossingRate(audioBuffer);
 
+  // Analyze envelope
+  const envelope = analyzeEnvelope(audioBuffer);
+
+  // Detect transients
+  const transients = detectTransients(audioBuffer);
+
+  // Classify track
+  const classification = classifyTrack(rms, zeroCrossingRate, spectralCentroid);
+
   player.stop();
   player.dispose();
   analyzer.dispose();
@@ -120,7 +129,10 @@ export const analyzeTrack = async (audioBuffer) => {
     spectralCentroid: calculateSpectralCentroid(centroidValue),
     rms,
     peakAmplitude,
-    zeroCrossingRate
+    zeroCrossingRate,
+    envelope,
+    transients,
+    classification
   };
 };
 
@@ -168,6 +180,56 @@ const calculateSpectralCentroid = (fftData) => {
   }
 
   return denominator !== 0 ? numerator / denominator : 0;
+};
+
+const analyzeEnvelope = (audioBuffer) => {
+  const channelData = audioBuffer.getChannelData(0);
+  const envelopeLength = Math.ceil(channelData.length / 1000); // Analyze 1000 points
+  const envelope = new Float32Array(envelopeLength);
+
+  for (let i = 0; i < envelopeLength; i++) {
+    const start = i * 1000;
+    const end = Math.min((i + 1) * 1000, channelData.length);
+    let max = 0;
+    for (let j = start; j < end; j++) {
+      const abs = Math.abs(channelData[j]);
+      if (abs > max) max = abs;
+    }
+    envelope[i] = max;
+  }
+
+  return Array.from(envelope);
+};
+
+const detectTransients = (audioBuffer) => {
+  const channelData = audioBuffer.getChannelData(0);
+  const transients = [];
+  const threshold = 0.1; // Adjust this value to change sensitivity
+  const minDistance = 1000; // Minimum distance between transients in samples
+
+  let lastTransient = -minDistance;
+
+  for (let i = 1; i < channelData.length; i++) {
+    const diff = Math.abs(channelData[i] - channelData[i - 1]);
+    if (diff > threshold && i - lastTransient >= minDistance) {
+      transients.push(i / audioBuffer.sampleRate); // Convert to seconds
+      lastTransient = i;
+    }
+  }
+
+  return transients;
+};
+
+const classifyTrack = (rms, zeroCrossingRate, spectralCentroid) => {
+  // These thresholds are approximate and may need adjustment
+  const isRhythmic = zeroCrossingRate > 0.1;
+  const isHarmonic = spectralCentroid < 2000 && rms > 0.1;
+  const isMelodic = spectralCentroid > 2000 && rms > 0.05;
+
+  if (isRhythmic) return 'Rhythmic';
+  if (isHarmonic) return 'Harmonic';
+  if (isMelodic) return 'Melodic';
+  return 'Unknown';
 };
 
 export const extractTrackType = (filename) => {

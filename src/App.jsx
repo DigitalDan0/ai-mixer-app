@@ -49,11 +49,12 @@ const App = () => {
       const analyzedTrack = { 
         ...newTrack, 
         analysis,
-        type: extractTrackType(newTrack.name), // New function to extract track type from filename
-        volume: 0, // Default volume (in dB)
-        pan: 0, // Default pan
-        eq: { low: 0, mid: 0, high: 0 }, // Default EQ settings
-        compression: { threshold: -24, ratio: 4 }, // Default compression settings
+        type: extractTrackType(newTrack.name),
+        classification: analysis.classification,
+        volume: 0,
+        pan: 0,
+        eq: { low: 0, mid: 0, high: 0 },
+        compression: { threshold: -24, ratio: 4 },
       };
       setTracks(prevTracks => [...prevTracks, analyzedTrack]);
     } catch (error) {
