@@ -53,29 +53,43 @@ const generateBatchSuggestions = async (trackBatch) => {
     const tracksDescription = trackBatch.map(track => {
       const { name, volume, pan, eq, compression, analysis } = track;
       return `
-        ${name}:
-        Volume: ${volume.toFixed(2)}
-        Pan: ${pan.toFixed(2)}
-        EQ: low ${eq.low.toFixed(1)}dB, mid ${eq.mid.toFixed(1)}dB, high ${eq.high.toFixed(1)}dB
-        Compression: threshold ${compression.threshold.toFixed(1)}dB, ratio ${compression.ratio.toFixed(1)}:1
-        Loudness: ${analysis.loudness.toFixed(2)} dB
-        Spectral Centroid: ${analysis.spectralCentroid.toFixed(2)} Hz
-        FFT Data: ${JSON.stringify(analysis.fft.slice(0, 10))}... (truncated)
+        Track: ${name}
+        Type: ${track.type || 'Unknown'}
+        Genre: ${track.genre || 'Unknown'}
+        Current Settings:
+          Volume: ${volume.toFixed(2)} dB
+          Pan: ${pan.toFixed(2)} (0 = center, -1 = full left, 1 = full right)
+          EQ:
+            Low: ${eq.low.toFixed(1)} dB
+            Mid: ${eq.mid.toFixed(1)} dB
+            High: ${eq.high.toFixed(1)} dB
+          Compression:
+            Threshold: ${compression.threshold.toFixed(1)} dB
+            Ratio: ${compression.ratio.toFixed(1)}:1
+        Analysis:
+          Loudness: ${analysis.loudness.toFixed(2)} dB
+          Spectral Centroid: ${analysis.spectralCentroid.toFixed(2)} Hz
+          Frequency Distribution: ${JSON.stringify(analysis.fft.slice(0, 10))}... (truncated)
       `.trim();
     }).join('\n\n');
 
-    const prompt = `As an expert audio engineer, analyze the following ${trackBatch.length} tracks in a mix and provide detailed mixing suggestions to improve their balance and quality:
+    const prompt = `As an expert audio engineer, analyze the following ${trackBatch.length} tracks in a mix and provide detailed mixing suggestions to improve their balance, clarity, and overall quality:
 
 ${tracksDescription}
 
-Consider the following aspects when making suggestions:
-1. Volume balance between tracks
-2. Stereo placement (panning)
-3. Frequency balance and potential conflicts (use the FFT and spectral centroid data)
-4. Dynamic range control (use the loudness data)
-5. Tonal balance and clarity
+For each track, provide specific recommendations for the following parameters:
+1. Volume: Suggest a new volume level in dB, considering the balance with other tracks.
+2. Pan: Recommend a pan position (-1 to 1) to create a balanced stereo image.
+3. EQ: Suggest adjustments for low, mid, and high frequencies in dB to enhance clarity and reduce frequency masking.
+4. Compression: Recommend threshold and ratio settings to control dynamics effectively.
 
-Provide mixing suggestions for each track, including volume, pan, EQ, and compression adjustments. Be specific with your recommendations, providing numerical values where appropriate. Base your suggestions on the actual audio analysis data provided.
+Additionally, provide a brief explanation for each suggestion, relating it to the track's role in the mix and its interaction with other tracks.
+
+Consider the following aspects in your analysis:
+- Frequency balance and potential conflicts between tracks
+- Dynamic range and consistency across the mix
+- Stereo image and spatial placement
+- Genre-specific mixing conventions (if genre is provided)
 
 Respond in JSON format with the following structure:
 {
@@ -85,11 +99,20 @@ Respond in JSON format with the following structure:
       "adjustments": {
         "volume": number,
         "pan": number,
-        "eq": { "low": number, "mid": number, "high": number },
-        "compression": { "threshold": number, "ratio": number }
-      }
+        "eq": {
+          "low": number,
+          "mid": number,
+          "high": number
+        },
+        "compression": {
+          "threshold": number,
+          "ratio": number
+        }
+      },
+      "explanation": "string"
     }
-  ]
+  ],
+  "overallAdvice": "string"
 }`;
 
     console.log('Generating batch suggestions with prompt:', prompt);
@@ -150,7 +173,11 @@ const callClaudeAPI = async (prompt) => {
       console.error('Response data:', error.response.data);
       console.error('Response status:', error.response.status);
       console.error('Response headers:', error.response.headers);
+    } else if (error.request) {
+      console.error('No response received:', error.request);
+    } else {
+      console.error('Error setting up request:', error.message);
     }
-    throw new Error(`Failed to get response from Claude API: ${error.response?.data?.details || error.message}`);
+    throw new Error(`Failed to get response from Claude API: ${error.message}`);
   }
 };
