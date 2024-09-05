@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 import MixingStage from './components/MixingStage';
 import MasteringStage from './components/MasteringStage';
-import { createEQ, createCompressor, updateTrackProcessing, analyzeTrack } from './services/audioProcessor';
+import { createEQ, createCompressor, updateTrackProcessing, analyzeTrack, extractTrackType } from './services/audioProcessor';
 import { interpretUserRequest, generateMixingSuggestion } from './services/aiService';
 
 const App = () => {
@@ -46,12 +46,25 @@ const App = () => {
       console.log('Received new track:', newTrack);
       const analysis = await analyzeTrack(newTrack.buffer);
       console.log('Track analysis completed:', analysis);
-      const analyzedTrack = { ...newTrack, analysis };
+      const analyzedTrack = { 
+        ...newTrack, 
+        analysis,
+        type: extractTrackType(newTrack.name), // New function to extract track type from filename
+        volume: 0, // Default volume (in dB)
+        pan: 0, // Default pan
+        eq: { low: 0, mid: 0, high: 0 }, // Default EQ settings
+        compression: { threshold: -24, ratio: 4 }, // Default compression settings
+      };
       setTracks(prevTracks => [...prevTracks, analyzedTrack]);
     } catch (error) {
       console.error('Error during track upload:', error);
       setTracks(prevTracks => [...prevTracks, newTrack]);
     }
+  };
+  
+  const extractTrackType = (filename) => {
+    const parts = filename.split(/[_\s-]/);
+    return parts[0] || 'Unknown';
   };
 
   const handleMixingChange = (trackId, changes) => {

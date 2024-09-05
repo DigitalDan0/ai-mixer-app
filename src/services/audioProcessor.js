@@ -40,23 +40,19 @@ export const updateTrackProcessing = (track, audioContext, gainNode, pannerNode,
   if (gainNode) {
     gainNode.gain.setValueAtTime(track.volume * (track.muted ? 0 : 1), audioContext.currentTime);
   }
-
   if (pannerNode) {
     pannerNode.pan.setValueAtTime(track.pan, audioContext.currentTime);
   }
-
   if (eqNode) {
     eqNode.low.gain.setValueAtTime(track.eq.low, audioContext.currentTime);
     eqNode.mid.gain.setValueAtTime(track.eq.mid, audioContext.currentTime);
     eqNode.high.gain.setValueAtTime(track.eq.high, audioContext.currentTime);
   }
-
   if (compressorNode) {
     compressorNode.threshold.setValueAtTime(track.compression.threshold, audioContext.currentTime);
     compressorNode.ratio.setValueAtTime(track.compression.ratio, audioContext.currentTime);
   }
 };
-// Add this function to the existing audioProcessor.js file
 
 export const applyAIMixingSuggestions = (tracks, suggestions) => {
   return tracks.map(track => {
@@ -81,6 +77,7 @@ export const applyAIMixingSuggestions = (tracks, suggestions) => {
     return track;
   });
 };
+
 export const analyzeTrack = async (audioBuffer) => {
   const analyzer = new Tone.Analyser('fft', 2048);
   const player = new Tone.Player(audioBuffer).connect(analyzer);
@@ -101,6 +98,15 @@ export const analyzeTrack = async (audioBuffer) => {
   const loudnessValue = loudness.getValue();
   const centroidValue = spectralCentroid.getValue();
 
+  // Calculate RMS (Root Mean Square) for average loudness
+  const rms = calculateRMS(audioBuffer);
+
+  // Calculate peak amplitude
+  const peakAmplitude = calculatePeakAmplitude(audioBuffer);
+
+  // Calculate zero-crossing rate
+  const zeroCrossingRate = calculateZeroCrossingRate(audioBuffer);
+
   player.stop();
   player.dispose();
   analyzer.dispose();
@@ -108,19 +114,63 @@ export const analyzeTrack = async (audioBuffer) => {
   spectralCentroid.dispose();
 
   return {
+    duration: audioBuffer.duration,
     fft: Array.from(fftData),
-    loudness: isFinite(loudnessValue) ? loudnessValue : -60, // Default to -60dB if invalid
-    spectralCentroid: calculateSpectralCentroid(centroidValue) || 0, // Default to 0 if invalid
+    loudness: isFinite(loudnessValue) ? loudnessValue : -60,
+    spectralCentroid: calculateSpectralCentroid(centroidValue),
+    rms,
+    peakAmplitude,
+    zeroCrossingRate
   };
 };
 
+const calculateRMS = (audioBuffer) => {
+  const channelData = audioBuffer.getChannelData(0);
+  let sum = 0;
+  for (let i = 0; i < channelData.length; i++) {
+    sum += channelData[i] * channelData[i];
+  }
+  return Math.sqrt(sum / channelData.length);
+};
+
+const calculatePeakAmplitude = (audioBuffer) => {
+  const channelData = audioBuffer.getChannelData(0);
+  let peak = 0;
+  for (let i = 0; i < channelData.length; i++) {
+    const abs = Math.abs(channelData[i]);
+    if (abs > peak) {
+      peak = abs;
+    }
+  }
+  return peak;
+};
+
+const calculateZeroCrossingRate = (audioBuffer) => {
+  const channelData = audioBuffer.getChannelData(0);
+  let zeroCrossings = 0;
+  for (let i = 1; i < channelData.length; i++) {
+    if ((channelData[i - 1] < 0 && channelData[i] >= 0) ||
+        (channelData[i - 1] >= 0 && channelData[i] < 0)) {
+      zeroCrossings++;
+    }
+  }
+  return zeroCrossings / (channelData.length - 1);
+};
+
 const calculateSpectralCentroid = (fftData) => {
-  let weightedSum = 0;
-  let totalMagnitude = 0;
+  let numerator = 0;
+  let denominator = 0;
+
   for (let i = 0; i < fftData.length; i++) {
     const magnitude = Math.abs(fftData[i]);
-    weightedSum += magnitude * i;
-    totalMagnitude += magnitude;
+    numerator += magnitude * i;
+    denominator += magnitude;
   }
-  return totalMagnitude > 0 ? weightedSum / totalMagnitude : 0;
+
+  return denominator !== 0 ? numerator / denominator : 0;
+};
+
+export const extractTrackType = (filename) => {
+  const parts = filename.split(/[_\s-]/);
+  return parts[0] || 'Unknown';
 };
