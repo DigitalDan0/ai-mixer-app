@@ -75,3 +75,47 @@
       flex: 1;
     }
   }
+  .ai-mix-toggle {
+    display: flex;
+    align-items: center;
+    margin-top: 20px;
+  }
+  
+  .ai-mix-toggle label {
+    margin-right: 10px;
+  }
+  
+  .ai-mix-toggle input[type="checkbox"] {
+    appearance: none;
+    width: 50px;
+    height: 26px;
+    background-color: #ccc;
+    border-radius: 13px;
+    position: relative;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .ai-mix-toggle input[type="checkbox"]:checked {
+    background-color: #2196F3;
+  }
+  
+  .ai-mix-toggle input[type="checkbox"]::before {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+    background-color: white;
+    transition: transform 0.3s;
+  }
+  
+  .ai-mix-toggle input[type="checkbox"]:checked::before {
+    transform: translateX(24px);
+  }
+  
+  .ai-mix-toggle span {
+    margin-left: 10px;
+  }

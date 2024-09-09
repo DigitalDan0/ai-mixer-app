@@ -21,6 +21,7 @@ export const callClaudeAPI = async (prompt) => {
     throw error;
   }
 };
+
 const isValidNumber = (value) => {
   return typeof value === 'number' && isFinite(value);
 };
@@ -87,6 +88,8 @@ const generateBatchSuggestions = async (trackBatch) => {
     - Transient content and its impact on dynamics processing
     - Overall envelope shape and its influence on track balance
     
+    IMPORTANT: In your response, do not use contractions. For the compression ratio, provide only the number without ":1". Ensure all numeric values are valid JSON numbers without quotes.
+    
     Respond in JSON format with the following structure:
     {
       "trackSuggestions": [
@@ -113,14 +116,21 @@ const generateBatchSuggestions = async (trackBatch) => {
 
     console.log('Generating batch suggestions with prompt:', prompt);
     const response = await callClaudeAPI(prompt);
-    console.log('Received response from Claude API:', response);
-    
-    // Clean up the response to ensure valid JSON
-    const cleanedResponse = response.replace(/(\d+(\.\d+)?):1/g, '$1');
-    
-    const parsedResponse = JSON.parse(cleanedResponse);
-    
+    console.log('Received raw response from Claude API:', response);
+
+    const cleanedResponse = response.replace(/:\s*\+/g, ': ');
+
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(cleanedResponse);
+    } catch (parseError) {
+      console.error('Error parsing JSON:', parseError);
+      console.log('Response that failed to parse:', cleanedResponse);
+      throw new Error('Invalid JSON response from AI');
+    }
+
     if (!parsedResponse.trackSuggestions || !Array.isArray(parsedResponse.trackSuggestions)) {
+      console.error('Invalid response structure:', parsedResponse);
       throw new Error('Invalid response format from AI');
     }
 

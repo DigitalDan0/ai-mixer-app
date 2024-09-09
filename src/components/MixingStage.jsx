@@ -11,6 +11,7 @@ const MixingStage = ({
   onMixingChange,
   onAIRequest,
   onApplyAIMix,
+  isAIMixApplied,
   analyserNode,
   isPlaying,
   onPlayPause,
@@ -34,7 +35,7 @@ const MixingStage = ({
           <h3>Tracks with Errors</h3>
           {errorTracks.map(track => (
             <div key={track.id} className="error-track">
-              <p>{track.name}: {track.errorMessage}</p>
+              <p><strong>{track.name}</strong>: {track.errorMessage}</p>
             </div>
           ))}
           <button onClick={onDeleteErrorTracks}>Delete Error Tracks</button>
@@ -51,7 +52,16 @@ const MixingStage = ({
           <AudioVisualizer analyserNode={analyserNode} />
         </div>
       </div>
-      <button onClick={onApplyAIMix} className="apply-ai-mix">Apply AI Mix</button>
+      <div className="ai-mix-toggle">
+        <label htmlFor="ai-mix-toggle">AI Mix</label>
+        <input
+          type="checkbox"
+          id="ai-mix-toggle"
+          checked={isAIMixApplied}
+          onChange={onApplyAIMix}
+        />
+        <span>{isAIMixApplied ? 'On' : 'Off'}</span>
+      </div>
     </div>
   );
 };

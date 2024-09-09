@@ -20,6 +20,8 @@ const App = () => {
   ]);
   const [reverbMix, setReverbMix] = useState(0);
   const [limiterThreshold, setLimiterThreshold] = useState(-3);
+  const [isAIMixApplied, setIsAIMixApplied] = useState(false);
+  const [originalTracks, setOriginalTracks] = useState([]);
 
   const audioContextRef = useRef(null);
   const masterGainNode = useRef(null);
@@ -46,10 +48,24 @@ const App = () => {
   };
 
   const handleTrackUpload = async (newTrack) => {
+    if (newTrack.status === 'error') {
+      setTracks(prevTracks => [...prevTracks, newTrack]);
+      return;
+    }
+  
     try {
       console.log('Received new track:', newTrack);
       const analysis = await analyzeTrack(newTrack.buffer);
       console.log('Track analysis completed:', analysis);
+  
+      if (analysis.error) {
+        throw new Error(analysis.message);
+      }
+  
+      if (!analysis.loudness && !analysis.spectralCentroid) {
+        throw new Error('Invalid track analysis results');
+      }
+  
       const analyzedTrack = { 
         ...newTrack, 
         analysis,
@@ -63,15 +79,16 @@ const App = () => {
       };
       setTracks(prevTracks => [...prevTracks, analyzedTrack]);
     } catch (error) {
-      console.error('Error during track upload:', error);
+      console.error('Error during track analysis:', error);
       const errorTrack = {
         ...newTrack,
         status: 'error',
-        errorMessage: error.message
+        errorMessage: `Error analyzing track: ${error.message}`
       };
       setTracks(prevTracks => [...prevTracks, errorTrack]);
     }
   };
+
   const deleteErrorTracks = () => {
     setTracks(prevTracks => prevTracks.filter(track => track.status !== 'error'));
   };
@@ -198,7 +215,9 @@ const App = () => {
   };
 
   const handleApplyAIMix = () => {
-    if (aiSuggestion && aiSuggestion.trackSuggestions) {
+    if (!isAIMixApplied && aiSuggestion && aiSuggestion.trackSuggestions) {
+      setOriginalTracks([...tracks]);
+
       const updatedTracks = tracks.map(track => {
         if (track.status === 'error') return track;
         const suggestion = aiSuggestion.trackSuggestions.find(s => s.trackName === track.name);
@@ -222,13 +241,19 @@ const App = () => {
         return track;
       });
       setTracks(updatedTracks);
-      updatedTracks.forEach(track => {
-        if (track.status !== 'error') {
-          updateTrackAudio(track.id, track);
-        }
+    } else {
+      setTracks(originalTracks);
+    }
+    setIsAIMixApplied(!isAIMixApplied);
+  };
+
+  useEffect(() => {
+    if (isPlaying) {
+      tracks.forEach(track => {
+        updateTrackAudio(track.id, track);
       });
     }
-  };
+  }, [isAIMixApplied, isPlaying]);
 
   return (
     <div className="app">
@@ -239,6 +264,7 @@ const App = () => {
         onMixingChange={handleMixingChange}
         onAIRequest={handleAIRequest}
         onApplyAIMix={handleApplyAIMix}
+        isAIMixApplied={isAIMixApplied}
         analyserNode={analyserNode.current}
         isPlaying={isPlaying}
         onPlayPause={handlePlayPause}
