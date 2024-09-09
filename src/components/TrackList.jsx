@@ -3,7 +3,13 @@ import './TrackList.css';
 
 const TrackList = ({ tracks, onMixingChange }) => {
   const handleChange = (trackId, parameter, value) => {
-    onMixingChange(trackId, { [parameter]: parseFloat(value) });
+    const parsedValue = parseFloat(value);
+    if (parameter.includes('.')) {
+      const [mainParam, subParam] = parameter.split('.');
+      onMixingChange(trackId, { [mainParam]: { [subParam]: parsedValue } });
+    } else {
+      onMixingChange(trackId, { [parameter]: parsedValue });
+    }
   };
 
   return (

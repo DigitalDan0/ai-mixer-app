@@ -53,9 +53,14 @@ app.post('/api/claude', async (req, res) => {
     if (error.response) {
       console.error('Claude API error response:', error.response.data);
     }
-    res.status(500).json({ error: 'Failed to get response from Claude API', details: error.message });
+    res.status(500).json({ 
+      error: 'Failed to get response from Claude API', 
+      details: error.message,
+      response: error.response ? error.response.data : null
+    });
   }
 });
+
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

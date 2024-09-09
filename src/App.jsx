@@ -41,6 +41,10 @@ const App = () => {
     };
   }, []);
 
+  const isValidNumber = (value) => {
+    return typeof value === 'number' && isFinite(value);
+  };
+
   const handleTrackUpload = async (newTrack) => {
     try {
       console.log('Received new track:', newTrack);
@@ -51,28 +55,44 @@ const App = () => {
         analysis,
         type: extractTrackType(newTrack.name),
         classification: analysis.classification,
-        volume: 0,
+        volume: 1,
         pan: 0,
         eq: { low: 0, mid: 0, high: 0 },
         compression: { threshold: -24, ratio: 4 },
+        status: 'success'
       };
       setTracks(prevTracks => [...prevTracks, analyzedTrack]);
     } catch (error) {
       console.error('Error during track upload:', error);
-      setTracks(prevTracks => [...prevTracks, newTrack]);
+      const errorTrack = {
+        ...newTrack,
+        status: 'error',
+        errorMessage: error.message
+      };
+      setTracks(prevTracks => [...prevTracks, errorTrack]);
     }
   };
-  
-  const extractTrackType = (filename) => {
-    const parts = filename.split(/[_\s-]/);
-    return parts[0] || 'Unknown';
+  const deleteErrorTracks = () => {
+    setTracks(prevTracks => prevTracks.filter(track => track.status !== 'error'));
   };
 
   const handleMixingChange = (trackId, changes) => {
+    console.log('Mixing change:', trackId, changes);
     setTracks(prevTracks =>
-      prevTracks.map(track =>
-        track.id === trackId ? { ...track, ...changes } : track
-      )
+      prevTracks.map(track => {
+        if (track.id === trackId) {
+          const updatedTrack = { ...track };
+          Object.entries(changes).forEach(([key, value]) => {
+            if (typeof value === 'object') {
+              updatedTrack[key] = { ...updatedTrack[key], ...value };
+            } else {
+              updatedTrack[key] = value;
+            }
+          });
+          return updatedTrack;
+        }
+        return track;
+      })
     );
     if (isPlaying) {
       updateTrackAudio(trackId, changes);
@@ -80,9 +100,13 @@ const App = () => {
   };
 
   const updateTrackAudio = (trackId, changes) => {
+    console.log('Updating track audio:', trackId, changes);
     const trackNode = trackNodes.current[trackId];
-    if (!trackNode) return;
-
+    if (!trackNode) {
+      console.warn('Track node not found:', trackId);
+      return;
+    }
+  
     updateTrackProcessing(changes, audioContextRef.current, trackNode.gainNode, trackNode.pannerNode, trackNode.eqNode, trackNode.compressorNode);
   };
 
@@ -95,24 +119,46 @@ const App = () => {
         audioContextRef.current.resume();
       } else {
         tracks.forEach(track => {
-          const sourceNode = audioContextRef.current.createBufferSource();
-          sourceNode.buffer = track.buffer;
+          if (!trackNodes.current[track.id]) {
+            console.log('Creating audio nodes for track:', track.id);
+            const sourceNode = audioContextRef.current.createBufferSource();
+            sourceNode.buffer = track.buffer;
 
-          const gainNode = audioContextRef.current.createGain();
-          const pannerNode = audioContextRef.current.createStereoPanner();
-          const eqNode = createEQ(audioContextRef.current);
-          const compressorNode = createCompressor(audioContextRef.current);
+            const gainNode = audioContextRef.current.createGain();
+            const pannerNode = audioContextRef.current.createStereoPanner();
+            const eqNode = createEQ(audioContextRef.current);
+            const compressorNode = createCompressor(audioContextRef.current);
 
-          sourceNode.connect(eqNode.input);
-          eqNode.output.connect(compressorNode);
-          compressorNode.connect(pannerNode);
-          pannerNode.connect(gainNode);
-          gainNode.connect(masterGainNode.current);
+            sourceNode.connect(eqNode.input);
+            eqNode.output.connect(compressorNode);
+            compressorNode.connect(pannerNode);
+            pannerNode.connect(gainNode);
+            gainNode.connect(masterGainNode.current);
+            
+            trackNodes.current[track.id] = { sourceNode, gainNode, pannerNode, eqNode, compressorNode };
+          }
+
+          const { sourceNode, gainNode, pannerNode, eqNode, compressorNode } = trackNodes.current[track.id];
           
-          updateTrackProcessing(track, audioContextRef.current, gainNode, pannerNode, eqNode, compressorNode);
-          
-          sourceNode.start();
-          trackNodes.current[track.id] = { sourceNode, gainNode, pannerNode, eqNode, compressorNode };
+          console.log('Applying initial track settings:', track.id, track);
+          updateTrackProcessing(
+            {
+              volume: track.volume,
+              pan: track.pan,
+              eq: track.eq,
+              compression: track.compression
+            },
+            audioContextRef.current,
+            gainNode,
+            pannerNode,
+            eqNode,
+            compressorNode
+          );
+
+          if (!sourceNode.started) {
+            sourceNode.start();
+            sourceNode.started = true;
+          }
         });
       }
       setIsPlaying(true);
@@ -152,32 +198,34 @@ const App = () => {
   };
 
   const handleApplyAIMix = () => {
-    if (aiSuggestion) {
+    if (aiSuggestion && aiSuggestion.trackSuggestions) {
       const updatedTracks = tracks.map(track => {
-        const suggestion = aiSuggestion.find(s => s.trackName === track.name);
+        if (track.status === 'error') return track;
+        const suggestion = aiSuggestion.trackSuggestions.find(s => s.trackName === track.name);
         if (suggestion) {
           const { adjustments } = suggestion;
           return {
             ...track,
-            volume: adjustments.volume !== undefined ? adjustments.volume : track.volume,
-            pan: adjustments.pan !== undefined ? adjustments.pan : track.pan,
+            volume: isValidNumber(adjustments.volume) ? Math.max(0, Math.min(2, adjustments.volume)) : track.volume,
+            pan: isValidNumber(adjustments.pan) ? Math.max(-1, Math.min(1, adjustments.pan)) : track.pan,
             eq: {
-              low: adjustments.eq?.low !== undefined ? adjustments.eq.low : track.eq.low,
-              mid: adjustments.eq?.mid !== undefined ? adjustments.eq.mid : track.eq.mid,
-              high: adjustments.eq?.high !== undefined ? adjustments.eq.high : track.eq.high,
+              low: isValidNumber(adjustments.eq?.low) ? Math.max(-12, Math.min(12, adjustments.eq.low)) : track.eq.low,
+              mid: isValidNumber(adjustments.eq?.mid) ? Math.max(-12, Math.min(12, adjustments.eq.mid)) : track.eq.mid,
+              high: isValidNumber(adjustments.eq?.high) ? Math.max(-12, Math.min(12, adjustments.eq.high)) : track.eq.high,
             },
             compression: {
-              threshold: adjustments.compression?.threshold !== undefined ? adjustments.compression.threshold : track.compression.threshold,
-              ratio: adjustments.compression?.ratio !== undefined ? adjustments.compression.ratio : track.compression.ratio,
+              threshold: isValidNumber(adjustments.compression?.threshold) ? Math.max(-60, Math.min(0, adjustments.compression.threshold)) : track.compression.threshold,
+              ratio: isValidNumber(adjustments.compression?.ratio) ? Math.max(1, Math.min(20, adjustments.compression.ratio)) : track.compression.ratio,
             },
           };
         }
         return track;
       });
-        isBypassed={isMasteringBypassed}
       setTracks(updatedTracks);
       updatedTracks.forEach(track => {
-        updateTrackAudio(track.id, track);
+        if (track.status !== 'error') {
+          updateTrackAudio(track.id, track);
+        }
       });
     }
   };
@@ -196,6 +244,7 @@ const App = () => {
         onPlayPause={handlePlayPause}
         onGenerateSuggestion={handleGenerateSuggestion}
         aiSuggestion={aiSuggestion}
+        onDeleteErrorTracks={deleteErrorTracks}
       />
       <MasteringStage
         isBypassed={isMasteringBypassed}
@@ -220,6 +269,6 @@ const App = () => {
       />
     </div>
   );
-};
+}
 
 export default App;

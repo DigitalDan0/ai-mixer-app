@@ -1,5 +1,9 @@
 import * as Tone from 'tone';
 
+const isValidNumber = (value) => {
+  return typeof value === 'number' && isFinite(value);
+};
+
 export const createEQ = (audioContext) => {
   const lowFilter = audioContext.createBiquadFilter();
   lowFilter.type = 'lowshelf';
@@ -29,210 +33,141 @@ export const createEQ = (audioContext) => {
 export const createCompressor = (audioContext) => {
   const compressor = audioContext.createDynamicsCompressor();
   compressor.threshold.value = -24;
-  compressor.ratio.value = 4;
-  compressor.knee.value = 5;
-  compressor.attack.value = 0.005;
-  compressor.release.value = 0.050;
+  compressor.knee.value = 30;
+  compressor.ratio.value = 12;
+  compressor.attack.value = 0.003;
+  compressor.release.value = 0.25;
   return compressor;
 };
 
-export const updateTrackProcessing = (track, audioContext, gainNode, pannerNode, eqNode, compressorNode) => {
-  if (gainNode) {
-    gainNode.gain.setValueAtTime(track.volume * (track.muted ? 0 : 1), audioContext.currentTime);
-  }
-  if (pannerNode) {
-    pannerNode.pan.setValueAtTime(track.pan, audioContext.currentTime);
-  }
-  if (eqNode) {
-    eqNode.low.gain.setValueAtTime(track.eq.low, audioContext.currentTime);
-    eqNode.mid.gain.setValueAtTime(track.eq.mid, audioContext.currentTime);
-    eqNode.high.gain.setValueAtTime(track.eq.high, audioContext.currentTime);
-  }
-  if (compressorNode) {
-    compressorNode.threshold.setValueAtTime(track.compression.threshold, audioContext.currentTime);
-    compressorNode.ratio.setValueAtTime(track.compression.ratio, audioContext.currentTime);
-  }
-};
+export const updateTrackProcessing = (changes, audioContext, gainNode, pannerNode, eqNode, compressorNode) => {
+  const currentTime = audioContext.currentTime;
 
-export const applyAIMixingSuggestions = (tracks, suggestions) => {
-  return tracks.map(track => {
-    const suggestion = suggestions.find(s => s.trackName === track.name);
-    if (suggestion) {
-      const { adjustments } = suggestion;
-      return {
-        ...track,
-        volume: adjustments.volume !== undefined ? adjustments.volume : track.volume,
-        pan: adjustments.pan !== undefined ? adjustments.pan : track.pan,
-        eq: {
-          low: adjustments.eq?.low !== undefined ? adjustments.eq.low : track.eq.low,
-          mid: adjustments.eq?.mid !== undefined ? adjustments.eq.mid : track.eq.mid,
-          high: adjustments.eq?.high !== undefined ? adjustments.eq.high : track.eq.high,
-        },
-        compression: {
-          threshold: adjustments.compression?.threshold !== undefined ? adjustments.compression.threshold : track.compression.threshold,
-          ratio: adjustments.compression?.ratio !== undefined ? adjustments.compression.ratio : track.compression.ratio,
-        },
-      };
+  console.log('Updating track processing with changes:', changes);
+
+  if (isValidNumber(changes.volume) && gainNode) {
+    console.log('Setting volume:', changes.volume);
+    gainNode.gain.setValueAtTime(changes.volume, currentTime);
+  }
+
+  if (isValidNumber(changes.pan) && pannerNode) {
+    console.log('Setting pan:', changes.pan);
+    pannerNode.pan.setValueAtTime(changes.pan, currentTime);
+  }
+
+  if (changes.eq && eqNode) {
+    console.log('Setting EQ:', changes.eq);
+    if (isValidNumber(changes.eq.low)) {
+      eqNode.low.gain.setValueAtTime(changes.eq.low, currentTime);
     }
-    return track;
-  });
+    if (isValidNumber(changes.eq.mid)) {
+      eqNode.mid.gain.setValueAtTime(changes.eq.mid, currentTime);
+    }
+    if (isValidNumber(changes.eq.high)) {
+      eqNode.high.gain.setValueAtTime(changes.eq.high, currentTime);
+    }
+  }
+
+  if (changes.compression && compressorNode) {
+    console.log('Setting compression:', changes.compression);
+    if (isValidNumber(changes.compression.threshold)) {
+      compressorNode.threshold.setValueAtTime(changes.compression.threshold, currentTime);
+    }
+    if (isValidNumber(changes.compression.ratio)) {
+      compressorNode.ratio.setValueAtTime(changes.compression.ratio, currentTime);
+    }
+  }
 };
 
 export const analyzeTrack = async (audioBuffer) => {
-  const analyzer = new Tone.Analyser('fft', 2048);
-  const player = new Tone.Player(audioBuffer).connect(analyzer);
-  
-  await Tone.loaded();
-  player.start();
+  const channelData = audioBuffer.getChannelData(0);
+  const sampleRate = audioBuffer.sampleRate;
 
-  const loudness = new Tone.Meter();
-  player.connect(loudness);
-
-  const spectralCentroid = new Tone.FFT(2048);
-  player.connect(spectralCentroid);
-
-  // Wait for a short time to ensure we get valid data
-  await new Promise(resolve => setTimeout(resolve, 100));
-
-  const fftData = analyzer.getValue();
-  const loudnessValue = loudness.getValue();
-  const centroidValue = spectralCentroid.getValue();
-
-  // Calculate RMS (Root Mean Square) for average loudness
-  const rms = calculateRMS(audioBuffer);
-
-  // Calculate peak amplitude
-  const peakAmplitude = calculatePeakAmplitude(audioBuffer);
-
-  // Calculate zero-crossing rate
-  const zeroCrossingRate = calculateZeroCrossingRate(audioBuffer);
-
-  // Analyze envelope
+  const loudness = calculateLoudness(channelData);
+  const spectralCentroid = calculateSpectralCentroid(channelData);
   const envelope = analyzeEnvelope(audioBuffer);
-
-  // Detect transients
-  const transients = detectTransients(audioBuffer);
-
-  // Classify track
-  const classification = classifyTrack(rms, zeroCrossingRate, spectralCentroid);
-
-  player.stop();
-  player.dispose();
-  analyzer.dispose();
-  loudness.dispose();
-  spectralCentroid.dispose();
+  const classification = classifyTrack(loudness, spectralCentroid, envelope);
 
   return {
-    duration: audioBuffer.duration,
-    fft: Array.from(fftData),
-    loudness: isFinite(loudnessValue) ? loudnessValue : -60,
-    spectralCentroid: calculateSpectralCentroid(centroidValue),
-    rms,
-    peakAmplitude,
-    zeroCrossingRate,
+    loudness,
+    spectralCentroid,
     envelope,
-    transients,
     classification
   };
 };
 
-const calculateRMS = (audioBuffer) => {
-  const channelData = audioBuffer.getChannelData(0);
+export const extractTrackType = (filename) => {
+  const lowercaseFilename = filename.toLowerCase();
+  if (lowercaseFilename.includes('vocal') || lowercaseFilename.includes('vox')) return 'Vocals';
+  if (lowercaseFilename.includes('guitar')) return 'Guitar';
+  if (lowercaseFilename.includes('bass')) return 'Bass';
+  if (lowercaseFilename.includes('drum') || lowercaseFilename.includes('kick') || lowercaseFilename.includes('snare')) return 'Drums';
+  if (lowercaseFilename.includes('synth') || lowercaseFilename.includes('pad')) return 'Synth';
+  if (lowercaseFilename.includes('piano') || lowercaseFilename.includes('keys')) return 'Keys';
+  return 'Other';
+};
+
+const calculateLoudness = (channelData) => {
   let sum = 0;
   for (let i = 0; i < channelData.length; i++) {
     sum += channelData[i] * channelData[i];
   }
-  return Math.sqrt(sum / channelData.length);
+  const rms = Math.sqrt(sum / channelData.length);
+  return 20 * Math.log10(rms);
 };
 
-const calculatePeakAmplitude = (audioBuffer) => {
-  const channelData = audioBuffer.getChannelData(0);
-  let peak = 0;
-  for (let i = 0; i < channelData.length; i++) {
-    const abs = Math.abs(channelData[i]);
-    if (abs > peak) {
-      peak = abs;
-    }
-  }
-  return peak;
-};
+const calculateSpectralCentroid = (channelData) => {
+  const fftSize = 2048;
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const analyser = audioContext.createAnalyser();
+  analyser.fftSize = fftSize;
 
-const calculateZeroCrossingRate = (audioBuffer) => {
-  const channelData = audioBuffer.getChannelData(0);
-  let zeroCrossings = 0;
-  for (let i = 1; i < channelData.length; i++) {
-    if ((channelData[i - 1] < 0 && channelData[i] >= 0) ||
-        (channelData[i - 1] >= 0 && channelData[i] < 0)) {
-      zeroCrossings++;
-    }
-  }
-  return zeroCrossings / (channelData.length - 1);
-};
+  const source = audioContext.createBufferSource();
+  const buffer = audioContext.createBuffer(1, channelData.length, audioContext.sampleRate);
+  buffer.getChannelData(0).set(channelData);
+  source.buffer = buffer;
 
-const calculateSpectralCentroid = (fftData) => {
+  source.connect(analyser);
+  analyser.connect(audioContext.destination);
+
+  const frequencyData = new Float32Array(analyser.frequencyBinCount);
+  analyser.getFloatFrequencyData(frequencyData);
+
   let numerator = 0;
   let denominator = 0;
 
-  for (let i = 0; i < fftData.length; i++) {
-    const magnitude = Math.abs(fftData[i]);
+  for (let i = 0; i < frequencyData.length; i++) {
+    const magnitude = Math.pow(10, frequencyData[i] / 20);
     numerator += magnitude * i;
     denominator += magnitude;
   }
+
+  source.disconnect();
+  analyser.disconnect();
+  audioContext.close();
 
   return denominator !== 0 ? numerator / denominator : 0;
 };
 
 const analyzeEnvelope = (audioBuffer) => {
   const channelData = audioBuffer.getChannelData(0);
-  const envelopeLength = Math.ceil(channelData.length / 1000); // Analyze 1000 points
-  const envelope = new Float32Array(envelopeLength);
+  const sampleRate = audioBuffer.sampleRate;
+  const envelopeLength = Math.floor(sampleRate * 0.01); // 10ms segments
+  const envelopeData = [];
 
-  for (let i = 0; i < envelopeLength; i++) {
-    const start = i * 1000;
-    const end = Math.min((i + 1) * 1000, channelData.length);
-    let max = 0;
-    for (let j = start; j < end; j++) {
-      const abs = Math.abs(channelData[j]);
-      if (abs > max) max = abs;
-    }
-    envelope[i] = max;
+  for (let i = 0; i < channelData.length; i += envelopeLength) {
+    const segment = channelData.slice(i, i + envelopeLength);
+    const rms = Math.sqrt(segment.reduce((sum, sample) => sum + sample * sample, 0) / segment.length);
+    envelopeData.push(rms);
   }
 
-  return Array.from(envelope);
+  return envelopeData;
 };
 
-const detectTransients = (audioBuffer) => {
-  const channelData = audioBuffer.getChannelData(0);
-  const transients = [];
-  const threshold = 0.1; // Adjust this value to change sensitivity
-  const minDistance = 1000; // Minimum distance between transients in samples
-
-  let lastTransient = -minDistance;
-
-  for (let i = 1; i < channelData.length; i++) {
-    const diff = Math.abs(channelData[i] - channelData[i - 1]);
-    if (diff > threshold && i - lastTransient >= minDistance) {
-      transients.push(i / audioBuffer.sampleRate); // Convert to seconds
-      lastTransient = i;
-    }
-  }
-
-  return transients;
-};
-
-const classifyTrack = (rms, zeroCrossingRate, spectralCentroid) => {
-  // These thresholds are approximate and may need adjustment
-  const isRhythmic = zeroCrossingRate > 0.1;
-  const isHarmonic = spectralCentroid < 2000 && rms > 0.1;
-  const isMelodic = spectralCentroid > 2000 && rms > 0.05;
-
-  if (isRhythmic) return 'Rhythmic';
-  if (isHarmonic) return 'Harmonic';
-  if (isMelodic) return 'Melodic';
-  return 'Unknown';
-};
-
-export const extractTrackType = (filename) => {
-  const parts = filename.split(/[_\s-]/);
-  return parts[0] || 'Unknown';
+const classifyTrack = (loudness, spectralCentroid, envelope) => {
+  // This is a simplified classification method. In a real-world scenario, you'd use more sophisticated techniques.
+  if (loudness > -10 && spectralCentroid > 3000) return 'Lead';
+  if (loudness < -15 && spectralCentroid < 500) return 'Bass';
+  if (envelope.some(value => value > 0.8)) return 'Percussive';
+  return 'Other';
 };

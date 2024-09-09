@@ -15,8 +15,11 @@ const MixingStage = ({
   isPlaying,
   onPlayPause,
   onGenerateSuggestion,
-  aiSuggestion
+  aiSuggestion,
+  onDeleteErrorTracks
 }) => {
+  const errorTracks = tracks.filter(track => track.status === 'error');
+
   return (
     <div className="mixing-stage">
       <h2>Mixing Stage</h2>
@@ -26,8 +29,19 @@ const MixingStage = ({
           <button onClick={onPlayPause}>{isPlaying ? 'Pause' : 'Play'}</button>
         </div>
       </div>
+      {errorTracks.length > 0 && (
+        <div className="error-tracks">
+          <h3>Tracks with Errors</h3>
+          {errorTracks.map(track => (
+            <div key={track.id} className="error-track">
+              <p>{track.name}: {track.errorMessage}</p>
+            </div>
+          ))}
+          <button onClick={onDeleteErrorTracks}>Delete Error Tracks</button>
+        </div>
+      )}
       <div className="mixing-workspace">
-        <TrackList tracks={tracks} onMixingChange={onMixingChange} />
+        <TrackList tracks={tracks.filter(track => track.status !== 'error')} onMixingChange={onMixingChange} />
         <div className="ai-and-visualizer">
           <AIAssistant 
             onAIRequest={onAIRequest} 
