@@ -3,6 +3,7 @@ import TrackList from './TrackList';
 import TrackUpload from './TrackUpload';
 import AIAssistant from './AIAssistant';
 import AudioVisualizer from './AudioVisualizer';
+import WaveformSlider from './WaveformSlider';
 import './MixingStage.css';
 
 const MixingStage = ({
@@ -17,18 +18,31 @@ const MixingStage = ({
   onPlayPause,
   onGenerateSuggestion,
   aiSuggestion,
-  onDeleteErrorTracks
+  onDeleteErrorTracks,
+  audioBuffer,
+  currentTime,
+  duration,
+  onSeek,
+  onSkipToStart,
+  onSkipToEnd
 }) => {
   const errorTracks = tracks.filter(track => track.status === 'error');
 
   return (
     <div className="mixing-stage">
       <h2>Mixing Stage</h2>
+      <WaveformSlider
+        audioBuffer={audioBuffer}
+        currentTime={currentTime}
+        duration={duration}
+        onSeek={onSeek}
+        isPlaying={isPlaying}
+        onPlayPause={onPlayPause}
+        onSkipToStart={onSkipToStart}
+        onSkipToEnd={onSkipToEnd}
+      />
       <div className="mixing-controls">
         <TrackUpload onTrackUpload={onTrackUpload} />
-        <div className="playback-controls">
-          <button onClick={onPlayPause}>{isPlaying ? 'Pause' : 'Play'}</button>
-        </div>
       </div>
       {errorTracks.length > 0 && (
         <div className="error-tracks">
@@ -64,6 +78,6 @@ const MixingStage = ({
       </div>
     </div>
   );
-};
+}
 
 export default MixingStage;

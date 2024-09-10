@@ -5,28 +5,31 @@ const isValidNumber = (value) => {
 };
 
 export const createEQ = (audioContext) => {
-  const lowFilter = audioContext.createBiquadFilter();
-  lowFilter.type = 'lowshelf';
-  lowFilter.frequency.value = 320;
+  const lowShelf = audioContext.createBiquadFilter();
+  lowShelf.type = 'lowshelf';
+  lowShelf.frequency.value = 320;
+  lowShelf.gain.value = 0;
 
-  const midFilter = audioContext.createBiquadFilter();
-  midFilter.type = 'peaking';
-  midFilter.frequency.value = 1000;
-  midFilter.Q.value = 0.5;
+  const midPeak = audioContext.createBiquadFilter();
+  midPeak.type = 'peaking';
+  midPeak.frequency.value = 1000;
+  midPeak.Q.value = 0.5;
+  midPeak.gain.value = 0;
 
-  const highFilter = audioContext.createBiquadFilter();
-  highFilter.type = 'highshelf';
-  highFilter.frequency.value = 3200;
+  const highShelf = audioContext.createBiquadFilter();
+  highShelf.type = 'highshelf';
+  highShelf.frequency.value = 3200;
+  highShelf.gain.value = 0;
 
-  lowFilter.connect(midFilter);
-  midFilter.connect(highFilter);
+  lowShelf.connect(midPeak);
+  midPeak.connect(highShelf);
 
   return {
-    low: lowFilter,
-    mid: midFilter,
-    high: highFilter,
-    input: lowFilter,
-    output: highFilter
+    input: lowShelf,
+    output: highShelf,
+    lowShelf,
+    midPeak,
+    highShelf
   };
 };
 
@@ -45,35 +48,35 @@ export const updateTrackProcessing = (changes, audioContext, gainNode, pannerNod
 
   console.log('Updating track processing with changes:', changes);
 
-  if (isValidNumber(changes.volume) && gainNode) {
+  if (isValidNumber(changes.volume) && gainNode && gainNode.gain) {
     console.log('Setting volume:', changes.volume);
     gainNode.gain.setValueAtTime(changes.volume, currentTime);
   }
 
-  if (isValidNumber(changes.pan) && pannerNode) {
+  if (isValidNumber(changes.pan) && pannerNode && pannerNode.pan) {
     console.log('Setting pan:', changes.pan);
     pannerNode.pan.setValueAtTime(changes.pan, currentTime);
   }
 
   if (changes.eq && eqNode) {
     console.log('Setting EQ:', changes.eq);
-    if (isValidNumber(changes.eq.low)) {
+    if (isValidNumber(changes.eq.low) && eqNode.low && eqNode.low.gain) {
       eqNode.low.gain.setValueAtTime(changes.eq.low, currentTime);
     }
-    if (isValidNumber(changes.eq.mid)) {
+    if (isValidNumber(changes.eq.mid) && eqNode.mid && eqNode.mid.gain) {
       eqNode.mid.gain.setValueAtTime(changes.eq.mid, currentTime);
     }
-    if (isValidNumber(changes.eq.high)) {
+    if (isValidNumber(changes.eq.high) && eqNode.high && eqNode.high.gain) {
       eqNode.high.gain.setValueAtTime(changes.eq.high, currentTime);
     }
   }
 
   if (changes.compression && compressorNode) {
     console.log('Setting compression:', changes.compression);
-    if (isValidNumber(changes.compression.threshold)) {
+    if (isValidNumber(changes.compression.threshold) && compressorNode.threshold) {
       compressorNode.threshold.setValueAtTime(changes.compression.threshold, currentTime);
     }
-    if (isValidNumber(changes.compression.ratio)) {
+    if (isValidNumber(changes.compression.ratio) && compressorNode.ratio) {
       compressorNode.ratio.setValueAtTime(changes.compression.ratio, currentTime);
     }
   }

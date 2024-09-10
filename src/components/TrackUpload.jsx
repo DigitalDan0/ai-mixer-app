@@ -11,16 +11,13 @@ const TrackUpload = ({ onTrackUpload }) => {
 
     for (const file of files) {
       try {
-        const buffer = await file.arrayBuffer();
+        const arrayBuffer = await file.arrayBuffer();
         console.log('File converted to ArrayBuffer');
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const audioBuffer = await audioContext.decodeAudioData(buffer);
-        console.log('AudioBuffer created');
         
         const newTrack = {
           id: Date.now() + Math.random(),
           name: file.name,
-          buffer: audioBuffer,
+          arrayBuffer: arrayBuffer,
           volume: 1,
           pan: 0,
           muted: false,
@@ -28,7 +25,7 @@ const TrackUpload = ({ onTrackUpload }) => {
           eq: { low: 0, mid: 0, high: 0 },
           compression: { threshold: -24, ratio: 4 },
           effects: [],
-          status: 'success'
+          status: 'pending'
         };
         
         console.log('New track object created:', newTrack);
@@ -55,9 +52,6 @@ const TrackUpload = ({ onTrackUpload }) => {
         accept="audio/*"
         multiple
       />
-      <button onClick={() => fileInputRef.current.click()}>
-        Upload Tracks
-      </button>
       {uploadErrors.length > 0 && (
         <div className="upload-errors">
           <h4>Upload Errors:</h4>
@@ -71,5 +65,6 @@ const TrackUpload = ({ onTrackUpload }) => {
     </div>
   );
 };
+
 
 export default TrackUpload;
