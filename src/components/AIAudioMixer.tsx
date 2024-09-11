@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Sliders, Mic2, BarChart3, User, Upload, Play, Pause, SkipBack, SkipForward, Maximize2, MessageSquare, Menu, Wand2, Trash2 } from "lucide-react";
+import React, { useState, useRef } from 'react';
+import { Sliders, User, Menu, Wand2, Maximize2, MessageSquare, Play, Pause, SkipBack, SkipForward } from "lucide-react";
 import WaveformSlider from './WaveformSlider';
 import AudioVisualizer from './AudioVisualizer';
+import TrackList from './TrackList';
 
 interface Track {
   id: number;
@@ -32,7 +33,6 @@ interface AIAudioMixerProps {
   onApplyAIMix: (isApplied: boolean) => void;
   aiSuggestion: string | null;
   onDeleteErrorTracks: () => void;
-  audioBuffer: AudioBuffer | null;
   analyserNode: AnalyserNode | null;
   onSkipToStart: () => void;
   onSkipToEnd: () => void;
@@ -62,43 +62,9 @@ export default function AIAudioMixer({
   const [isAIMixApplied, setIsAIMixApplied] = useState(false);
   const [isGeneratingMix, setIsGeneratingMix] = useState(false);
   const [userInput, setUserInput] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleTrackUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    for (const file of files) {
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const newTrack = {
-          id: Date.now() + Math.random(),
-          name: file.name,
-          arrayBuffer: arrayBuffer,
-          volume: 1,
-          pan: 0,
-          muted: false,
-          soloed: false,
-          eq: { low: 0, mid: 0, high: 0 },
-          compression: { threshold: -24, ratio: 4 },
-          effects: [],
-          status: 'pending'
-        };
-        onTrackUpload(newTrack);
-      } catch (error) {
-        console.error('Error loading audio file:', error);
-        // Handle error (e.g., show error message to user)
-      }
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
 
   const handleVolumeChange = (trackId: number, newVolume: number) => {
     onMixingChange(trackId, { volume: newVolume });
-  };
-
-  const handlePanChange = (trackId: number, newPan: number) => {
-    onMixingChange(trackId, { pan: newPan });
   };
 
   const handleMuteToggle = (trackId: number) => {
@@ -110,6 +76,10 @@ export default function AIAudioMixer({
     });
     setTracks(updatedTracks);
     onMixingChange(trackId, { muted: !tracks.find(t => t.id === trackId)?.muted });
+  };
+
+  const handlePanChange = (trackId: number, newPan: number) => {
+    onMixingChange(trackId, { pan: newPan });
   };
 
   const handleSoloToggle = (trackId: number) => {
@@ -187,35 +157,12 @@ export default function AIAudioMixer({
         {/* Left sidebar */}
         <aside className={`w-64 bg-gray-800 p-4 overflow-y-auto transition-all ${sidebarOpen ? '' : '-ml-64'}`}>
           <h2 className="text-xl font-semibold mb-4">Tracks</h2>
-          <div className="space-y-4">
-            <label className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center cursor-pointer">
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="audio/*"
-                className="hidden"
-                onChange={handleTrackUpload}
-                multiple
-              />
-              <Upload className="h-8 w-8 mx-auto mb-2" />
-              <p>Drag & Drop files here</p>
-            </label>
-            {tracks.map(track => (
-              <div key={track.id} className="flex items-center space-x-2 p-2 bg-gray-700 rounded-lg">
-                <div className={`w-2 h-8 ${track.status === 'error' ? 'bg-red-500' : 'bg-blue-500'} rounded-full`}></div>
-                <span>{track.name}</span>
-                <div className="flex-1 h-2 bg-gray-600 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-blue-500"
-                    style={{ width: `${track.volume * 100}%` }}
-                  ></div>
-                </div>
-                <button className="p-1 rounded-full hover:bg-gray-600" onClick={() => handleMuteToggle(track.id)}>
-                  <Mic2 className={`h-4 w-4 ${track.muted ? 'text-red-500' : 'text-white'}`} />
-                </button>
-              </div>
-            ))}
-          </div>
+          <TrackList
+            tracks={tracks}
+            onTrackUpload={onTrackUpload}
+            onMuteToggle={handleMuteToggle}
+            onVolumeChange={handleVolumeChange}
+          />
         </aside>
   
         {/* Mixing console */}
@@ -279,9 +226,6 @@ export default function AIAudioMixer({
                     <button className="p-2 rounded-full hover:bg-gray-700">
                       <Sliders className="h-4 w-4" />
                     </button>
-                    <button className="p-2 rounded-full hover:bg-gray-700">
-                      <BarChart3 className="h-4 w-4" />
-                    </button>
                   </div>
                 </div>
               </div>
@@ -313,6 +257,7 @@ export default function AIAudioMixer({
         </aside>
       </div>
   
+      {/* Footer */}
       <footer className="bg-gray-800 p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
@@ -351,5 +296,5 @@ export default function AIAudioMixer({
         </div>
       </footer>
     </div>
-  ); 
+  );
 }

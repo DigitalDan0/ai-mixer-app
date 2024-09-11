@@ -1,6 +1,6 @@
 import React from 'react';
-import MasteringControls from './MasteringControls';
-import AudioVisualizer from './AudioVisualizer';
+import MasteringControls from '../src/components/MasteringControls';
+import AudioVisualizer from '../src/components/AudioVisualizer';
 
 const MasteringStage = ({
   isBypassed,
