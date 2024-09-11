@@ -102,17 +102,36 @@ export default function AIAudioMixer({
   };
 
   const handleMuteToggle = (trackId: number) => {
-    const track = tracks.find(t => t.id === trackId);
-    if (track) {
-      onMixingChange(trackId, { muted: !track.muted });
-    }
+    const updatedTracks = tracks.map(track => {
+      if (track.id === trackId) {
+        return { ...track, muted: !track.muted };
+      }
+      return track;
+    });
+    setTracks(updatedTracks);
+    onMixingChange(trackId, { muted: !tracks.find(t => t.id === trackId)?.muted });
   };
 
   const handleSoloToggle = (trackId: number) => {
-    const track = tracks.find(t => t.id === trackId);
-    if (track) {
-      onMixingChange(trackId, { soloed: !track.soloed });
-    }
+    const updatedTracks = tracks.map(track => {
+      if (track.id === trackId) {
+        return { ...track, soloed: !track.soloed };
+      }
+      return track;
+    });
+  
+    const hasSoloedTrack = updatedTracks.some(track => track.soloed);
+  
+    updatedTracks.forEach(track => {
+      if (hasSoloedTrack) {
+        track.muted = !track.soloed;
+      } else {
+        track.muted = false;
+      }
+    });
+  
+    setTracks(updatedTracks);
+    onMixingChange(trackId, { soloed: !tracks.find(t => t.id === trackId)?.soloed });
   };
 
   const handleGenerateAIMix = () => {
@@ -162,7 +181,7 @@ export default function AIAudioMixer({
           </button>
         </div>
       </header>
-
+  
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar */}
@@ -198,7 +217,7 @@ export default function AIAudioMixer({
             ))}
           </div>
         </aside>
-
+  
         {/* Mixing console */}
         <main className="flex-1 overflow-y-auto p-4">
           <WaveformSlider
@@ -211,13 +230,13 @@ export default function AIAudioMixer({
             onSkipToStart={onSkipToStart}
             onSkipToEnd={onSkipToEnd}
           />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
             {tracks.map(track => (
               <div key={track.id} className="bg-gray-800 p-4 rounded-lg">
                 <h3 className="text-lg font-semibold mb-2">{track.name}</h3>
                 <div className="space-y-4">
                   <div className="h-24 bg-gray-700 rounded-lg overflow-hidden">
-                    {/* Placeholder for waveform */}
+                    {/* Placeholder for individual track waveform */}
                     <div className="h-full bg-blue-500 opacity-50" style={{ width: '100%' }}></div>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -249,13 +268,13 @@ export default function AIAudioMixer({
                       className={`px-2 py-1 rounded ${track.muted ? 'bg-red-600' : 'bg-gray-600'} hover:bg-opacity-80`}
                       onClick={() => handleMuteToggle(track.id)}
                     >
-                      Mute
+                      {track.muted ? 'Unmute' : 'Mute'}
                     </button>
                     <button 
                       className={`px-2 py-1 rounded ${track.soloed ? 'bg-green-600' : 'bg-gray-600'} hover:bg-opacity-80`}
                       onClick={() => handleSoloToggle(track.id)}
                     >
-                      Solo
+                      {track.soloed ? 'Unsolo' : 'Solo'}
                     </button>
                     <button className="p-2 rounded-full hover:bg-gray-700">
                       <Sliders className="h-4 w-4" />
@@ -269,7 +288,7 @@ export default function AIAudioMixer({
             ))}
           </div>
         </main>
-
+  
         {/* Right sidebar */}
         <aside className={`w-64 bg-gray-800 p-4 overflow-y-auto transition-all ${rightSidebarOpen ? '' : 'mr-64'}`}>
           <h2 className="text-xl font-semibold mb-4">AI Assistant</h2>
@@ -293,7 +312,7 @@ export default function AIAudioMixer({
           <AudioVisualizer analyserNode={analyserNode} />
         </aside>
       </div>
-
+  
       <footer className="bg-gray-800 p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
@@ -318,19 +337,19 @@ export default function AIAudioMixer({
         </div>
         <div className="relative w-full h-2 bg-gray-700 rounded-full">
           <input
-             type="range"
-             min="0"
-             max={duration}
-             value={currentTime}
-             onChange={(e) => onSeek(parseFloat(e.target.value))}
-             className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer"
-           />
-           <div
-             className="absolute top-0 left-0 h-full bg-blue-500 rounded-full"
-             style={{ width: `${(currentTime / duration) * 100}%` }}
-           ></div>
-         </div>
-       </footer>
-     </div>
-   );
- }
+            type="range"
+            min="0"
+            max={duration}
+            value={currentTime}
+            onChange={(e) => onSeek(parseFloat(e.target.value))}
+            className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer"
+          />
+          <div
+            className="absolute top-0 left-0 h-full bg-blue-500 rounded-full"
+            style={{ width: `${(currentTime / duration) * 100}%` }}
+          ></div>
+        </div>
+      </footer>
+    </div>
+  ); 
+}

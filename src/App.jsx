@@ -29,6 +29,10 @@ const App = () => {
     };
   }, []);
 
+  useEffect(() => {
+    console.log('Tracks updated:', tracks);
+  }, [tracks]);
+
   const handleTrackUpload = async (newTrack) => {
     try {
       const audioBuffer = await audioContextRef.current.decodeAudioData(newTrack.arrayBuffer.slice(0));
@@ -48,6 +52,7 @@ const App = () => {
   
       const updatedTrack = {
         ...newTrack,
+        id: String(newTrack.id), // Ensure ID is a string
         type: trackType,
         analysis: analysis,
         audioBuffer: audioBuffer,
@@ -58,26 +63,47 @@ const App = () => {
       setTracks(prevTracks => [...prevTracks, updatedTrack]);
       setDuration(prevDuration => Math.max(prevDuration, audioBuffer.duration));
   
-      if (isPlaying) {
-        sourceNode.start(0, currentTime);
-      }
+      console.log(`Track uploaded: ${updatedTrack.id}`, updatedTrack);
+  
+      return updatedTrack;
     } catch (error) {
       console.error('Error uploading track:', error);
-      setTracks(prevTracks => [...prevTracks, {
+      const errorTrack = {
         ...newTrack,
+        id: String(newTrack.id),
         status: 'error',
         errorMessage: 'Failed to load audio file'
-      }]);
+      };
+      setTracks(prevTracks => [...prevTracks, errorTrack]);
+      return errorTrack;
     }
   };
+
 
   const handleMixingChange = (trackId, changes) => {
     setTracks(prevTracks => prevTracks.map(track => {
       if (track.id === trackId) {
         const updatedTrack = { ...track, ...changes };
         const [sourceNode, gainNode] = trackNodes.current[trackId];
-        if (changes.volume !== undefined) {
+        if (changes.volume !== undefined && !updatedTrack.muted) {
           gainNode.gain.setValueAtTime(changes.volume, audioContextRef.current.currentTime);
+        }
+        if (changes.muted !== undefined) {
+          gainNode.gain.setValueAtTime(changes.muted ? 0 : updatedTrack.volume, audioContextRef.current.currentTime);
+        }
+        if (changes.soloed !== undefined) {
+          const soloedTracks = prevTracks.filter(t => t.id !== trackId && t.soloed);
+          if (changes.soloed) {
+            soloedTracks.push(updatedTrack);
+          }
+          prevTracks.forEach(t => {
+            const [, tGainNode] = trackNodes.current[t.id];
+            if (soloedTracks.length > 0) {
+              tGainNode.gain.setValueAtTime(soloedTracks.includes(t) ? t.volume : 0, audioContextRef.current.currentTime);
+            } else {
+              tGainNode.gain.setValueAtTime(t.muted ? 0 : t.volume, audioContextRef.current.currentTime);
+            }
+          });
         }
         // Implement other parameter changes here (pan, eq, compression, etc.)
         return updatedTrack;
@@ -87,72 +113,58 @@ const App = () => {
   };
 
   const handlePlayPause = () => {
-    if (audioContextRef.current.state === 'suspended') {
-      audioContextRef.current.resume();
-    }
-
     if (isPlaying) {
+      Object.values(trackNodes.current).forEach(([sourceNode]) => sourceNode.stop());
       clearInterval(timerRef.current);
-      Object.values(trackNodes.current).forEach(([sourceNode]) => {
-        sourceNode.stop();
-      });
     } else {
-      const startTime = audioContextRef.current.currentTime - currentTime;
       tracks.forEach(track => {
-        const [, gainNode] = trackNodes.current[track.id];
-        const newSource = audioContextRef.current.createBufferSource();
-        newSource.buffer = track.audioBuffer;
-        newSource.connect(gainNode);
-        newSource.start(0, currentTime);
-        trackNodes.current[track.id][0] = newSource;
+        if (track.status === 'loaded' && track.audioBuffer) {
+          const [, gainNode] = trackNodes.current[track.id];
+          const sourceNode = audioContextRef.current.createBufferSource();
+          sourceNode.buffer = track.audioBuffer;
+          sourceNode.connect(gainNode);
+          sourceNode.start(0, currentTime);
+          trackNodes.current[track.id][0] = sourceNode;
+        } else {
+          console.warn(`Track with id ${track.id} not found or has no audioBuffer`);
+        }
       });
-
       timerRef.current = setInterval(() => {
         setCurrentTime(prevTime => {
-          const newTime = audioContextRef.current.currentTime - startTime;
-          return newTime > duration ? duration : newTime;
+          if (prevTime >= duration) {
+            clearInterval(timerRef.current);
+            setIsPlaying(false);
+            return duration;
+          }
+          return prevTime + 0.1;
         });
-      }, 50);
+      }, 100);
     }
-
     setIsPlaying(!isPlaying);
   };
-
-  const handleSeek = (newTime) => {
-    setCurrentTime(newTime);
+  
+  const handleSeek = (time) => {
+    setCurrentTime(time);
     if (isPlaying) {
-      clearInterval(timerRef.current);
-      Object.values(trackNodes.current).forEach(([sourceNode]) => {
-        sourceNode.stop();
-      });
-
-      const startTime = audioContextRef.current.currentTime - newTime;
+      Object.values(trackNodes.current).forEach(([sourceNode]) => sourceNode.stop());
       tracks.forEach(track => {
-        const [, gainNode] = trackNodes.current[track.id];
-        const newSource = audioContextRef.current.createBufferSource();
-        newSource.buffer = track.audioBuffer;
-        newSource.connect(gainNode);
-        newSource.start(0, newTime);
-        trackNodes.current[track.id][0] = newSource;
+        if (track.status === 'loaded' && track.audioBuffer) {
+          const [, gainNode] = trackNodes.current[track.id];
+          const sourceNode = audioContextRef.current.createBufferSource();
+          sourceNode.buffer = track.audioBuffer;
+          sourceNode.connect(gainNode);
+          sourceNode.start(0, time);
+          trackNodes.current[track.id][0] = sourceNode;
+        } else {
+          console.warn(`Track with id ${track.id} not found or has no audioBuffer`);
+        }
       });
-
-      timerRef.current = setInterval(() => {
-        setCurrentTime(prevTime => {
-          const newTime = audioContextRef.current.currentTime - startTime;
-          return newTime > duration ? duration : newTime;
-        });
-      }, 50);
     }
   };
 
   const handleGenerateSuggestion = async () => {
-    try {
-      const suggestion = await generateMixingSuggestion(tracks);
-      setAiSuggestion(suggestion);
-    } catch (error) {
-      console.error('Error generating mixing suggestion:', error);
-      setAiSuggestion('Error: Unable to generate mixing suggestion');
-    }
+    const suggestion = await generateMixingSuggestion(tracks);
+    setAiSuggestion(suggestion);
   };
 
   const handleApplyAIMix = (isApplied) => {
@@ -210,6 +222,6 @@ const App = () => {
       />
     </div>
   );
-};
+}
 
 export default App;
