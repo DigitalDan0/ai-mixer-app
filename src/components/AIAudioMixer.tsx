@@ -24,7 +24,7 @@ interface AIAudioMixerProps {
   setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   currentTime: number;
   duration: number;
-  onTrackUpload: (file: File) => void;
+  onTrackUpload: (newTrack: any) => void;
   onMixingChange: (trackId: number, changes: Partial<Track>) => void;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
@@ -62,11 +62,34 @@ export default function AIAudioMixer({
   const [isAIMixApplied, setIsAIMixApplied] = useState(false);
   const [isGeneratingMix, setIsGeneratingMix] = useState(false);
   const [userInput, setUserInput] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleTrackUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      onTrackUpload(file);
+  const handleTrackUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    for (const file of files) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const newTrack = {
+          id: Date.now() + Math.random(),
+          name: file.name,
+          arrayBuffer: arrayBuffer,
+          volume: 1,
+          pan: 0,
+          muted: false,
+          soloed: false,
+          eq: { low: 0, mid: 0, high: 0 },
+          compression: { threshold: -24, ratio: 4 },
+          effects: [],
+          status: 'pending'
+        };
+        onTrackUpload(newTrack);
+      } catch (error) {
+        console.error('Error loading audio file:', error);
+        // Handle error (e.g., show error message to user)
+      }
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -111,7 +134,7 @@ export default function AIAudioMixer({
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
-     {/* Header */}
+      {/* Header */}
       <header className="flex items-center justify-between p-4 bg-gray-800">
         <div className="flex items-center space-x-4">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-full hover:bg-gray-700">
@@ -149,9 +172,11 @@ export default function AIAudioMixer({
             <label className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center cursor-pointer">
               <input
                 type="file"
+                ref={fileInputRef}
                 accept="audio/*"
                 className="hidden"
                 onChange={handleTrackUpload}
+                multiple
               />
               <Upload className="h-8 w-8 mx-auto mb-2" />
               <p>Drag & Drop files here</p>
@@ -176,15 +201,15 @@ export default function AIAudioMixer({
 
         {/* Mixing console */}
         <main className="flex-1 overflow-y-auto p-4">
-        <WaveformSlider
-          tracks={tracks}
-          currentTime={currentTime}
-          duration={duration}
-          onSeek={onSeek}
-          isPlaying={isPlaying}
-          onPlayPause={onPlayPause}
-          onSkipToStart={onSkipToStart}
-          onSkipToEnd={onSkipToEnd}
+          <WaveformSlider
+            tracks={tracks}
+            currentTime={currentTime}
+            duration={duration}
+            onSeek={onSeek}
+            isPlaying={isPlaying}
+            onPlayPause={onPlayPause}
+            onSkipToStart={onSkipToStart}
+            onSkipToEnd={onSkipToEnd}
           />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
             {tracks.map(track => (
@@ -270,42 +295,42 @@ export default function AIAudioMixer({
       </div>
 
       <footer className="bg-gray-800 p-4">
-  <div className="flex items-center justify-between mb-2">
-    <div className="flex items-center space-x-2">
-      <button className="p-2 rounded-full hover:bg-gray-700" onClick={onSkipToStart}>
-        <SkipBack className="h-4 w-4" />
-      </button>
-      <button className="p-2 rounded-full hover:bg-gray-700" onClick={onPlayPause}>
-        {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-      </button>
-      <button className="p-2 rounded-full hover:bg-gray-700" onClick={onSkipToEnd}>
-        <SkipForward className="h-4 w-4" />
-      </button>
-    </div>
-    <div className="flex items-center space-x-2">
-      <span>{formatTime(currentTime)}</span>
-      <span>/</span>
-      <span>{formatTime(duration)}</span>
-    </div>
-    <button className="p-2 rounded-full hover:bg-gray-700" onClick={() => setRightSidebarOpen(!rightSidebarOpen)}>
-      <Maximize2 className="h-4 w-4" />
-    </button>
-  </div>
-  <div className="relative w-full h-2 bg-gray-700 rounded-full">
-    <input
-      type="range"
-      min="0"
-      max={duration}
-      value={currentTime}
-      onChange={(e) => onSeek(parseFloat(e.target.value))}
-      className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer"
-    />
-    <div
-      className="absolute top-0 left-0 h-full bg-blue-500 rounded-full"
-      style={{ width: `${(currentTime / duration) * 100}%` }}
-    ></div>
-  </div>
-</footer>
-    </div>
-  );
-}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-2">
+            <button className="p-2 rounded-full hover:bg-gray-700" onClick={onSkipToStart}>
+              <SkipBack className="h-4 w-4" />
+            </button>
+            <button className="p-2 rounded-full hover:bg-gray-700" onClick={onPlayPause}>
+              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </button>
+            <button className="p-2 rounded-full hover:bg-gray-700" onClick={onSkipToEnd}>
+              <SkipForward className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span>{formatTime(currentTime)}</span>
+            <span>/</span>
+            <span>{formatTime(duration)}</span>
+          </div>
+          <button className="p-2 rounded-full hover:bg-gray-700" onClick={() => setRightSidebarOpen(!rightSidebarOpen)}>
+            <Maximize2 className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="relative w-full h-2 bg-gray-700 rounded-full">
+          <input
+             type="range"
+             min="0"
+             max={duration}
+             value={currentTime}
+             onChange={(e) => onSeek(parseFloat(e.target.value))}
+             className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer"
+           />
+           <div
+             className="absolute top-0 left-0 h-full bg-blue-500 rounded-full"
+             style={{ width: `${(currentTime / duration) * 100}%` }}
+           ></div>
+         </div>
+       </footer>
+     </div>
+   );
+ }

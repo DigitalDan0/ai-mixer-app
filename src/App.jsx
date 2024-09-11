@@ -29,52 +29,42 @@ const App = () => {
     };
   }, []);
 
-  const handleTrackUpload = async (file) => {
+  const handleTrackUpload = async (newTrack) => {
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      const audioBuffer = await audioContextRef.current.decodeAudioData(newTrack.arrayBuffer.slice(0));
       
       const analysis = {
         duration: audioBuffer.duration,
         numberOfChannels: audioBuffer.numberOfChannels,
         sampleRate: audioBuffer.sampleRate
       };
-      const trackType = file.name.toLowerCase().includes('drum') ? 'drums' : 'instrument';
-
+      const trackType = newTrack.name.toLowerCase().includes('drum') ? 'drums' : 'instrument';
+  
       const sourceNode = audioContextRef.current.createBufferSource();
       sourceNode.buffer = audioBuffer;
       const gainNode = audioContextRef.current.createGain();
       sourceNode.connect(gainNode);
       gainNode.connect(masterGainNode.current);
-
-      const newTrack = {
-        id: Date.now(),
-        name: file.name,
-        volume: 0.75,
-        pan: 0,
-        muted: false,
-        soloed: false,
-        eq: { low: 0, mid: 0, high: 0 },
-        compression: { threshold: -24, ratio: 4 },
-        effects: [],
-        status: 'loaded',
+  
+      const updatedTrack = {
+        ...newTrack,
         type: trackType,
         analysis: analysis,
-        audioBuffer: audioBuffer
+        audioBuffer: audioBuffer,
+        status: 'loaded'
       };
-
-      trackNodes.current[newTrack.id] = [sourceNode, gainNode];
-      setTracks(prevTracks => [...prevTracks, newTrack]);
-      setDuration(Math.max(duration, audioBuffer.duration));
-
+  
+      trackNodes.current[updatedTrack.id] = [sourceNode, gainNode];
+      setTracks(prevTracks => [...prevTracks, updatedTrack]);
+      setDuration(prevDuration => Math.max(prevDuration, audioBuffer.duration));
+  
       if (isPlaying) {
         sourceNode.start(0, currentTime);
       }
     } catch (error) {
       console.error('Error uploading track:', error);
       setTracks(prevTracks => [...prevTracks, {
-        id: Date.now(),
-        name: file.name,
+        ...newTrack,
         status: 'error',
         errorMessage: 'Failed to load audio file'
       }]);

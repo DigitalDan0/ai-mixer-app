@@ -1,5 +1,3 @@
-import React, { useRef, useState } from 'react';
-
 const TrackUpload = ({ onTrackUpload }) => {
   const fileInputRef = useRef(null);
   const [uploadErrors, setUploadErrors] = useState([]);
@@ -64,7 +62,4 @@ const TrackUpload = ({ onTrackUpload }) => {
       )}
     </div>
   );
-};
-
-
-export default TrackUpload;
+}
