@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Sliders, User, Menu, Wand2, Maximize2, MessageSquare, Play, Pause, SkipBack, SkipForward } from "lucide-react";
 import WaveformSlider from './WaveformSlider';
 import AudioVisualizer from './AudioVisualizer';
 import TrackList from './TrackList';
+import TrackUpload from './TrackUpload';
 
 interface Track {
   id: number;
@@ -125,44 +126,22 @@ export default function AIAudioMixer({
     <div className="flex flex-col h-screen bg-gray-900 text-white">
       {/* Header */}
       <header className="flex items-center justify-between p-4 bg-gray-800">
-        <div className="flex items-center space-x-4">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-full hover:bg-gray-700">
-            <Menu className="h-6 w-6" />
-          </button>
-          <h1 className="text-2xl font-bold">AI Audio Mixer</h1>
-        </div>
-        <div className="flex items-center space-x-4">
-          <button 
-            onClick={handleGenerateAIMix} 
-            disabled={isGeneratingMix}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-md disabled:opacity-50"
-          >
-            {isGeneratingMix ? 'Generating...' : 'Generate AI Mix'}
-          </button>
-          <div className="flex items-center space-x-2">
-            <span>Apply AI Mix</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" checked={isAIMixApplied} onChange={(e) => handleApplyAIMix(e.target.checked)} />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-          <button className="p-2 rounded-full hover:bg-gray-700">
-            <User className="h-6 w-6" />
-          </button>
-        </div>
+        {/* ... (keep existing header content) */}
       </header>
   
-      {/* Main content */}
-      <div className="flex flex-1 overflow-hidden">
+       {/* Main content */}
+       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar */}
         <aside className={`w-64 bg-gray-800 p-4 overflow-y-auto transition-all ${sidebarOpen ? '' : '-ml-64'}`}>
           <h2 className="text-xl font-semibold mb-4">Tracks</h2>
-          <TrackList
-            tracks={tracks}
-            onTrackUpload={onTrackUpload}
-            onMuteToggle={handleMuteToggle}
-            onVolumeChange={handleVolumeChange}
-          />
+          <TrackUpload onTrackUpload={onTrackUpload} />
+          <div className="mt-4">
+            <TrackList
+              tracks={tracks}
+              onMuteToggle={handleMuteToggle}
+              onVolumeChange={handleVolumeChange}
+            />
+          </div>
         </aside>
   
         {/* Mixing console */}

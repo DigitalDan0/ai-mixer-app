@@ -1,52 +1,9 @@
 import React from 'react';
-import { Mic2, Upload } from "lucide-react";
+import { Mic2 } from "lucide-react";
 
-const TrackList = ({ tracks, onTrackUpload, onMuteToggle, onVolumeChange }) => {
-  const fileInputRef = React.useRef(null);
-
-  const handleTrackUpload = async (event) => {
-    const files = Array.from(event.target.files || []);
-    for (const file of files) {
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const newTrack = {
-          id: Date.now() + Math.random(),
-          name: file.name,
-          arrayBuffer: arrayBuffer,
-          volume: 1,
-          pan: 0,
-          muted: false,
-          soloed: false,
-          eq: { low: 0, mid: 0, high: 0 },
-          compression: { threshold: -24, ratio: 4 },
-          effects: [],
-          status: 'pending'
-        };
-        onTrackUpload(newTrack);
-      } catch (error) {
-        console.error('Error loading audio file:', error);
-        // Handle error (e.g., show error message to user)
-      }
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
+const TrackList = ({ tracks, onMuteToggle, onVolumeChange }) => {
   return (
     <div className="space-y-4">
-      <label className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center cursor-pointer">
-        <input
-          type="file"
-          ref={fileInputRef}
-          accept="audio/*"
-          className="hidden"
-          onChange={handleTrackUpload}
-          multiple
-        />
-        <Upload className="h-8 w-8 mx-auto mb-2" />
-        <p>Drag & Drop files here</p>
-      </label>
       {tracks.map(track => (
         <div key={track.id} className="flex items-center space-x-2 p-2 bg-gray-700 rounded-lg">
           <div className={`w-2 h-8 ${track.status === 'error' ? 'bg-red-500' : 'bg-blue-500'} rounded-full`}></div>

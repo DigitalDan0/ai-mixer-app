@@ -1,17 +1,14 @@
+import React, { useRef } from 'react';
+import { Upload } from "lucide-react";
+
 const TrackUpload = ({ onTrackUpload }) => {
   const fileInputRef = useRef(null);
-  const [uploadErrors, setUploadErrors] = useState([]);
 
-  const handleFileChange = async (event) => {
-    const files = Array.from(event.target.files);
-    console.log('Files selected:', files);
-    const errors = [];
-
+  const handleTrackUpload = async (event) => {
+    const files = Array.from(event.target.files || []);
     for (const file of files) {
       try {
         const arrayBuffer = await file.arrayBuffer();
-        console.log('File converted to ArrayBuffer');
-        
         const newTrack = {
           id: Date.now() + Math.random(),
           name: file.name,
@@ -25,41 +22,31 @@ const TrackUpload = ({ onTrackUpload }) => {
           effects: [],
           status: 'pending'
         };
-        
-        console.log('New track object created:', newTrack);
         onTrackUpload(newTrack);
       } catch (error) {
         console.error('Error loading audio file:', error);
-        errors.push({ name: file.name, error: error.message });
+        // Handle error (e.g., show error message to user)
       }
     }
-
-    if (errors.length > 0) {
-      setUploadErrors(errors);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
-
-    fileInputRef.current.value = '';
   };
 
   return (
-    <div className="track-upload">
+    <label className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center cursor-pointer">
       <input
         type="file"
         ref={fileInputRef}
-        onChange={handleFileChange}
         accept="audio/*"
+        className="hidden"
+        onChange={handleTrackUpload}
         multiple
       />
-      {uploadErrors.length > 0 && (
-        <div className="upload-errors">
-          <h4>Upload Errors:</h4>
-          <ul>
-            {uploadErrors.map((error, index) => (
-              <li key={index}>{error.name}: {error.error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+      <Upload className="h-8 w-8 mx-auto mb-2" />
+      <p>Drag & Drop files here</p>
+    </label>
   );
-}
+};
+
+export default TrackUpload;
