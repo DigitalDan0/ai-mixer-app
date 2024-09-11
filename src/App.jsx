@@ -81,35 +81,33 @@ const App = () => {
 
 
   const handleMixingChange = (trackId, changes) => {
-    setTracks(prevTracks => prevTracks.map(track => {
-      if (track.id === trackId) {
-        const updatedTrack = { ...track, ...changes };
-        const [sourceNode, gainNode] = trackNodes.current[trackId];
-        if (changes.volume !== undefined && !updatedTrack.muted) {
-          gainNode.gain.setValueAtTime(changes.volume, audioContextRef.current.currentTime);
+    setTracks(prevTracks => {
+      const updatedTracks = prevTracks.map(track => {
+        if (track.id === trackId) {
+          return { ...track, ...changes };
         }
-        if (changes.muted !== undefined) {
-          gainNode.gain.setValueAtTime(changes.muted ? 0 : updatedTrack.volume, audioContextRef.current.currentTime);
+        return track;
+      });
+  
+      const soloedTracks = updatedTracks.filter(t => t.soloed);
+      
+      updatedTracks.forEach(track => {
+        const [, gainNode] = trackNodes.current[track.id];
+        let gainValue = 0;
+  
+        if (soloedTracks.length > 0) {
+          // If any track is soloed, only play soloed tracks
+          gainValue = track.soloed ? (track.muted ? 0 : track.volume) : 0;
+        } else {
+          // If no track is soloed, play all unmuted tracks
+          gainValue = track.muted ? 0 : track.volume;
         }
-        if (changes.soloed !== undefined) {
-          const soloedTracks = prevTracks.filter(t => t.id !== trackId && t.soloed);
-          if (changes.soloed) {
-            soloedTracks.push(updatedTrack);
-          }
-          prevTracks.forEach(t => {
-            const [, tGainNode] = trackNodes.current[t.id];
-            if (soloedTracks.length > 0) {
-              tGainNode.gain.setValueAtTime(soloedTracks.includes(t) ? t.volume : 0, audioContextRef.current.currentTime);
-            } else {
-              tGainNode.gain.setValueAtTime(t.muted ? 0 : t.volume, audioContextRef.current.currentTime);
-            }
-          });
-        }
-        // Implement other parameter changes here (pan, eq, compression, etc.)
-        return updatedTrack;
-      }
-      return track;
-    }));
+  
+        gainNode.gain.setValueAtTime(gainValue, audioContextRef.current.currentTime);
+      });
+  
+      return updatedTracks;
+    });
   };
 
   const handlePlayPause = () => {
